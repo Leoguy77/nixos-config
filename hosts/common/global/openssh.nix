@@ -44,7 +44,7 @@ in {
         ]
         ++
         # Alias for localhost if it's the same host
-        (lib.optional (hostname == config.networking.hostName) "localhost")
+        (lib.optional (hostname == config.networking.hostName) "localhost");
         # Alias to m7.rs and git.m7.rs if it's alcyone
         #++ (lib.optionals (hostname == "alcyone") [
         #  "m7.rs"
