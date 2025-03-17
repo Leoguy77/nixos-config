@@ -41,7 +41,7 @@
       };
       publicKeys = [
         {
-          source = ../../pgp.asc;
+          source = ../../gpg.asc;
           trust = 5;
         }
       ];

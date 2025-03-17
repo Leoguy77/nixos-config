@@ -36,7 +36,10 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
+    themes = {
+      url = "github:misterio77/themes";
+      inputs.systems.follows = "systems";
+    };
     # Third party programs, packaged with nix
     nix-gaming = {
       # url = "github:fufexan/nix-gaming";
@@ -65,7 +68,9 @@
     );
   in {
     inherit lib;
-    
+    homeManagerModules = import ./modules/home-manager;
+    #overlays = import ./overlays {inherit inputs outputs;};
+    #packages = forEachSystem (pkgs: import ./pkgs {inherit pkgs;});
     nixosConfigurations = {
       # Main desktop
       surface = lib.nixosSystem {
@@ -80,7 +85,7 @@
       # Standalone HM only
 
       # Main desktop
-      "leoguy77@atlas" = lib.homeManagerConfiguration {
+      "leoguy77@surface" = lib.homeManagerConfiguration {
         modules = [./home/leoguy77/surface.nix ./home/leoguy77/nixpkgs.nix];
         pkgs = pkgsFor.x86_64-linux;
         extraSpecialArgs = {

@@ -14,7 +14,6 @@
       ./openssh.nix
       ./optin-persistence.nix
       ./sops.nix
-      ./steam-hardware.nix
       ./tailscale.nix
       ./gamemode.nix
       ./kdeconnect.nix
@@ -28,7 +27,7 @@
   };
 
   nixpkgs = {
-    overlays = builtins.attrValues outputs.overlays;
+    #overlays = builtins.attrValues outputs.overlays;
     config = {
       allowUnfree = true;
     };

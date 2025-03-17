@@ -9,7 +9,7 @@ in {
   users.mutableUsers = false;
   users.users.leoguy77 = {
     isNormalUser = true;
-    shell = pkgs.fish;
+    shell = pkgs.bash;
     extraGroups = ifTheyExist [
       "audio"
       "docker"

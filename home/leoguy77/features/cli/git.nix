@@ -4,6 +4,7 @@
   lib,
   ...
 }: let
+in{
   programs.git = {
     enable = true;
     package = pkgs.gitAndTools.gitFull;
@@ -40,4 +41,5 @@
       ".jj"
     ];
   };
+
 }
