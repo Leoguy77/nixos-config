@@ -4,7 +4,7 @@ keys:
     - &leo BB6CEB57452F6236BA0001D7274249FAF8F3F735
   # Hosts
   - &hosts:
-    - &surface age1hm5lf4qk84r4wh00atn6hpts7mpdx80adq26wht2e5qh9ewvhyaszfv82d
+    - &surface age1z9r9kqlpwlh4qf0j05nfryylph2a3p2k3f8af8gs096ahe3jm4eqt9c9s9
 
 creation_rules:
   - path_regex: hosts/taygeta/secrets.ya?ml$

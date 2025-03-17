@@ -7,7 +7,16 @@
 {
   imports =
     [
+      inputs.hardware.nixosModules.common-cpu-amd
+      inputs.hardware.nixosModules.common-gpu-amd
+      inputs.hardware.nixosModules.common-pc-ssd
       ./hardware-configuration.nix
+      ../common/global
+      ../common/users/gabriel
+      ./common/optional/greetd.nix
+      ../common/optional/pipewire.nix
+      #../common/optional/quietboot.nix
+      ../common/optional/wireless.nix
     ];
 
   # Use the systemd-boot EFI boot loader.
@@ -18,9 +27,13 @@
     hostName = "surface";
     useDHCP = true;
   };
+  environment.systemPackages = with pkgs; [
+    hello
+  ];
+
   hardware.graphics.enable = true;
 
-  system.stateVersion = "24.11"; # Did you read the comment?
+  system.stateVersion = "24.11";
 
 }
 
