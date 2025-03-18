@@ -70,7 +70,7 @@
     inherit lib;
     homeManagerModules = import ./modules/home-manager;
     #overlays = import ./overlays {inherit inputs outputs;};
-    #packages = forEachSystem (pkgs: import ./pkgs {inherit pkgs;});
+    packages = forEachSystem (pkgs: import ./pkgs {inherit pkgs;});
     nixosConfigurations = {
       # Main desktop
       surface = lib.nixosSystem {
