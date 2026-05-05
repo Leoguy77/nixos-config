@@ -29,11 +29,27 @@
     enable = true;
     userName = "Leon";
     userEmail = "leonschneider29@googlemail.com";
+    signing = {
+      key = "BB6CEB57452F6236BA0001D7274249FAF8F3F735";
+      signByDefault = true;
+    };
     extraConfig = {
       init.defaultBranch = "main";
       pull.rebase = true;
       merge.conflictstyle = "diff3";
     };
+  };
+
+  # GPG configuration
+  programs.gpg = {
+    enable = true;
+    settings = {
+      keyserver = "keyserver.ubuntu.com";
+    };
+    publicKeys = [{
+      source = "/home/leoguy77/.gnupg/public-keys.d";
+      trust = 5;
+    }];
   };
 
   # Zsh configuration
