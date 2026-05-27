@@ -1,16 +1,8 @@
-# System-wide settings
+# Core system settings
 { config, pkgs, lib, ... }:
 
 {
-  # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # Kernel modules
-  boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" "rtsx_pci_sdmmc" ];
-  boot.kernelModules = [ "kvm-intel" ];
-
-  # System settings
+  # System version
   system.stateVersion = "24.11";
 
   # Nix settings
@@ -18,7 +10,6 @@
     settings = {
       experimental-features = [ "nix-command" "flakes" ];
       auto-optimise-store = true;
-      gc-user = "root";
     };
     gc = {
       automatic = true;
@@ -26,10 +17,6 @@
       options = "--delete-older-than 14d";
     };
   };
-
-  # Security
-  security.rtkit.enable = true;
-  security.sudo.wheelNeedsPassword = true;
 
   # Networking
   networking = {
@@ -59,19 +46,12 @@
   # Console keymap
   console.keyMap = "de";
 
-  # Hardware
-  hardware = {
-    cpu.intel.updateMicrocode = true;
-    enableRedistributableFirmware = true;
-    pulseaudio.enable = false;
-  };
-
   # Fonts
   fonts = {
     packages = with pkgs; [
       noto-fonts
       noto-fonts-cjk-sans
-      noto-fonts-emoji
+      noto-fonts-color-emoji
       liberation_ttf
       fira-code
       fira-code-symbols
