@@ -6,9 +6,9 @@ in
 {
   # Allow unfree packages
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+    "1password"
     "1password-gui"
     "1password-cli"
-    "1password"
     "code"
     "vscode"
   ];
@@ -20,11 +20,12 @@ in
     wget
     vim
     nano
+    home-manager
     
     # System monitoring
     htop
     btop
-    neofetch
+    fastfetch
     
     # File utilities
     ripgrep
@@ -47,6 +48,9 @@ in
     # Security
     gnupg
     age
+    
+    # Password manager
+    _1password-gui
     
     # LLM tools
     llm-agents.pi

@@ -37,27 +37,10 @@
         PermitRootLogin = "no";
       };
     };
-
-    # GPG Agent
-    gnupg.agent = {
-      enable = true;
-      enableSSHSupport = true;
-    };
-
-    # 1Password
-    _1password = {
-      enable = true;
-    };
-    _1password-gui = {
-      enable = true;
-      polkitPolicyOwners = [ "leoguy77" ];
-    };
-
-    # Firefox
-    firefox.enable = true;
   };
 
   # Power management (good for Surface/laptops)
+  services.power-profiles-daemon.enable = false;
   services.auto-cpufreq = {
     enable = true;
     settings = {

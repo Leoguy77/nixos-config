@@ -29,7 +29,7 @@
       modules = [
         ./configuration.nix
         home-manager.nixosModules.home-manager
-        inputs.auto-cpufreq.nixosModules.auto-cpufreq
+        inputs.auto-cpufreq.nixosModules.default
       ];
     };
   };
