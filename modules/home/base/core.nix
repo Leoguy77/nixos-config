@@ -117,7 +117,7 @@ in
         cat = lib.mkDefault "bat";
         grep = lib.mkDefault "rg";
       };
-      initContent = lib.mkDefault ''
+      initContent = lib.mkForce ''
         # Smart home light control
         function space {
             if [ "$1" = "off" ]; then
