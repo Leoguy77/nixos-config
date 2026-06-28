@@ -48,7 +48,7 @@
     useGlobalPkgs = true;
     useUserPackages = true;
     extraSpecialArgs = { inherit mylib myvars pkgs-stable inputs pkgs; };
-    users.leoguy77 = { config, ... } = {
+    users.leoguy77 = { config, ... }: {
       imports = [
         ../../modules/home
         ./home.nix  # Surface-specific home overrides
