@@ -3,10 +3,6 @@
 { config, pkgs, lib, myvars, pkgs-stable, inputs, ... }:
 
 {
-  imports = [
-    ../../modules/home
-  ];
-  
   # Required by Home Manager
   home.stateVersion = myvars.system.stateVersion;
   
