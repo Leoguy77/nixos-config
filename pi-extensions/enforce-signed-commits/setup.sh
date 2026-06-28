@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+#
+# Setup script for enforce-signed-commits extension
+# Configures Git to require signed commits and sets up pre-commit hooks
+#
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║  Enforce Signed Commits - Setup                       ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Function to print success
+success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+# Function to print error
+error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+# Function to print warning
+warning() {
+    echo -e "${YELLOW}!${NC} $1"
+}
+
+# Function to print info
+info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    error "Not in a git repository. Please run this from a git repo."
+    exit 1
+fi
+
+echo -e "${YELLOW}Step 1: Checking 1Password SSH Agent${NC}"
+echo "────────────────────────────────────────────────────────"
+
+# Check if 1Password SSH agent is running
+if [ -n "$SSH_AUTH_SOCK" ] && [[ "$SSH_AUTH_SOCK" == *"1password"* ]]; then
+    success "1Password SSH agent is running"
+    info "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+else
+    warning "1Password SSH agent may not be running"
+    info "You can start it with: eval \$(op ssh-agent --start)"
+    
+    # Try to start it
+    if command -v op &> /dev/null; then
+        eval "$(op ssh-agent --start)" 2>/dev/null || true
+        if [ -n "$SSH_AUTH_SOCK" ] && [[ "$SSH_AUTH_SOCK" == *"1password"* ]]; then
+            success "Started 1Password SSH agent"
+        fi
+    fi
+fi
+
+echo ""
+echo -e "${YELLOW}Step 2: Checking Git Signing Configuration${NC}"
+echo "────────────────────────────────────────────────────────"
+
+# Get user's SSH signing key from git config or generate prompt
+SIGNING_KEY=$(git config --get user.signingkey 2>/dev/null || echo "")
+
+if [ -z "$SIGNING_KEY" ]; then
+    warning "No signing key configured in Git"
+    info "We'll configure it automatically"
+else
+    success "Signing key already configured"
+fi
+
+# Configure Git for SSH signing
+echo ""
+info "Configuring Git for SSH signing..."
+
+# Set Git to use SSH for signing
+git config commit.gpgsign true
+success "Enabled commit.gpgsign"
+
+git config gpg.format ssh
+success "Set gpg.format to ssh"
+
+# Check if op-ssh-sign is available
+if command -v op &> /dev/null; then
+    OP_SSH_SIGN="/run/current-system/sw/bin/op-ssh-sign"
+    if [ -f "$OP_SSH_SIGN" ]; then
+        git config gpg.ssh.program "$OP_SSH_SIGN"
+        success "Set gpg.ssh.program to op-ssh-sign"
+    else
+        # Fallback to just op-ssh-sign in PATH
+        git config gpg.ssh.program "op-ssh-sign"
+        success "Set gpg.ssh.program to op-ssh-sign (from PATH)"
+    fi
+else
+    error "1Password CLI (op) not found. Please install it first."
+    exit 1
+fi
+
+git config tag.gpgsign true
+success "Enabled tag.gpgsign"
+
+echo ""
+echo -e "${YELLOW}Step 3: Setting Up Allowed Signers File${NC}"
+echo "────────────────────────────────────────────────────────"
+
+# Create allowed_signers file
+ALLOWED_SIGNERS="$HOME/.ssh/allowed_signers"
+
+if [ ! -f "$ALLOWED_SIGNERS" ]; then
+    info "Creating allowed_signers file..."
+    
+    # Get the signing key from git config or use a placeholder
+    if [ -n "$SIGNING_KEY" ]; then
+        USER_EMAIL=$(git config --get user.email 2>/dev/null || echo "user@example.com")
+        echo "$USER_EMAIL $SIGNING_KEY" > "$ALLOWED_SIGNERS"
+        chmod 600 "$ALLOWED_SIGNERS"
+        success "Created $ALLOWED_SIGNERS"
+    else
+        warning "Cannot create allowed_signers without a signing key"
+        info "Please add your SSH public key to $ALLOWED_SIGNERS manually"
+        info "Format: <email> <key-type> <key-data>"
+    fi
+else
+    success "Allowed signers file already exists"
+fi
+
+# Configure Git to use the allowed_signers file
+git config gpg.ssh.allowedSignersFile "$ALLOWED_SIGNERS"
+success "Configured gpg.ssh.allowedSignersFile"
+
+echo ""
+echo -e "${YELLOW}Step 4: Installing Pre-commit Hook${NC}"
+echo "────────────────────────────────────────────────────────"
+
+# Install pre-commit hook
+HOOKS_DIR="$GIT_ROOT/.git/hooks"
+PRE_COMMIT_HOOK="$HOOKS_DIR/pre-commit"
+
+# Create backup if hook exists
+if [ -f "$PRE_COMMIT_HOOK" ]; then
+    if ! grep -q "enforce-signed-commits" "$PRE_COMMIT_HOOK"; then
+        cp "$PRE_COMMIT_HOOK" "$PRE_COMMIT_HOOK.backup"
+        warning "Backed up existing pre-commit hook"
+    fi
+fi
+
+# Write the pre-commit hook
+cat > "$PRE_COMMIT_HOOK" << 'HOOK_EOF'
+#!/usr/bin/env bash
+#
+# Pre-commit hook to enforce signed commits
+# Generated by enforce-signed-commits extension
+#
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}🔒 Checking commit signing configuration...${NC}"
+
+# Check if commit.gpgsign is enabled
+GPGSIGN=$(git config --get commit.gpgsign)
+if [ "$GPGSIGN" != "true" ]; then
+    echo -e "${RED}✗ Commit signing is not enabled!${NC}"
+    echo ""
+    echo -e "${YELLOW}Fix:${NC} git config commit.gpgsign true"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Commit signing is enabled"
+
+# Check if gpg.format is ssh
+GPG_FORMAT=$(git config --get gpg.format)
+if [ "$GPG_FORMAT" != "ssh" ]; then
+    echo -e "${RED}✗ Git is not configured to use SSH for signing!${NC}"
+    echo ""
+    echo -e "${YELLOW}Fix:${NC} git config gpg.format ssh"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Using SSH for signing"
+
+# Check if SSH auth socket is set
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    echo -e "${RED}✗ SSH_AUTH_SOCK is not set!${NC}"
+    echo ""
+    echo -e "${YELLOW}Fix:${NC} Start your SSH agent or set SSH_AUTH_SOCK"
+    echo "  For 1Password: eval \$(op ssh-agent --start)"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} SSH agent is configured"
+
+# Check if allowedSignersFile exists
+ALLOWED_SIGNERS=$(git config --get gpg.ssh.allowedSignersFile)
+if [ -n "$ALLOWED_SIGNERS" ] && [ ! -f "$ALLOWED_SIGNERS" ]; then
+    echo -e "${RED}✗ Allowed signers file not found: $ALLOWED_SIGNERS${NC}"
+    echo ""
+    echo -e "${YELLOW}Fix:${NC} Create the file or update the path"
+    exit 1
+fi
+if [ -n "$ALLOWED_SIGNERS" ]; then
+    echo -e "${GREEN}✓${NC} Allowed signers file exists"
+fi
+
+echo -e "${GREEN}✓ All signing checks passed!${NC}"
+echo ""
+
+# Continue with commit
+exit 0
+HOOK_EOF
+
+chmod +x "$PRE_COMMIT_HOOK"
+success "Installed pre-commit hook"
+
+echo ""
+echo -e "${YELLOW}Step 5: Verification${NC}"
+echo "────────────────────────────────────────────────────────"
+
+# Verify configuration
+echo ""
+info "Current Git signing configuration:"
+echo ""
+git config --get commit.gpgsign && echo "  ✓ commit.gpgsign"
+git config --get gpg.format && echo "  ✓ gpg.format"
+git config --get gpg.ssh.program && echo "  ✓ gpg.ssh.program"
+git config --get gpg.ssh.allowedSignersFile && echo "  ✓ gpg.ssh.allowedSignersFile"
+git config --get tag.gpgsign && echo "  ✓ tag.gpgsign"
+
+echo ""
+echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║  Setup Complete!                                       ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BLUE}Your commits will now be signed automatically!${NC}"
+echo ""
+echo -e "${YELLOW}Test it:${NC}"
+echo "  git commit --allow-empty -m 'Test signed commit'"
+echo "  git log -1 --show-signature"
+echo ""

@@ -1,0 +1,10 @@
+{
+  "name": "enforce-signed-commits",
+  "version": "1.0.0",
+  "description": "Prevents unsigned commits by enforcing Git commit signing with 1Password SSH agent",
+  "author": "Leon",
+  "license": "MIT",
+  "engines": {
+    "pi": ">=0.50.0"
+  }
+}
