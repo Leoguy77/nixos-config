@@ -2,11 +2,11 @@
 { config, pkgs, lib, ... }:
 
 let
-  cfg = config.modules.home.development;
+  cfg = config.modules.home.base.development;
 in
 
 {
-  options.modules.home.development = {
+  options.modules.home.base.development = {
     enable = lib.mkEnableOption "development home module";
     tmux = lib.mkEnableOption "tmux";
     mise = lib.mkEnableOption "mise version manager";
@@ -58,7 +58,7 @@ in
         After = [ "graphical-session.target" ];
       };
       Service = {
-        ExecStart = "${pkgs._1password}/bin/op-ssh-sign";
+        ExecStart = "${pkgs._1password-cli}/bin/op-ssh-sign";
         Restart = "on-failure";
       };
       Install.WantedBy = [ "default.target" ];

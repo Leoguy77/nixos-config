@@ -2,11 +2,11 @@
 { config, pkgs, lib, inputs, ... }:
 
 let
-  cfg = config.modules.home.pi;
+  cfg = config.modules.home.gui.pi;
 in
 
 {
-  options.modules.home.pi = {
+  options.modules.home.gui.pi = {
     enable = lib.mkEnableOption "pi home module";
     extensions = lib.mkEnableOption "pi extensions";
     llmAgentsPackage = lib.mkOption {
@@ -22,11 +22,11 @@ in
       cfg.llmAgentsPackage
     ];
 
-    # Pi extensions directory
-    home.file.".pi-extensions" = lib.mkIf cfg.extensions {
-      source = lib.mkDefault "${config.home.homeDirectory}/dotfiles/nixos-config/pi-extensions";
-      recursive = true;
-    };
+    # Pi extensions directory (optional, user can set up manually)
+    # home.file.".pi-extensions" = lib.mkIf cfg.extensions {
+    #   source = builtins.path { path = ../../../../pi-extensions; name = "pi-extensions"; };
+    #   recursive = true;
+    # };
 
     # Pi configuration
     xdg.configFile."pi/config.json".text = lib.mkDefault ''

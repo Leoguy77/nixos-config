@@ -1,26 +1,36 @@
 # Surface-specific Home Manager configuration
-# This imports the modular home configuration with host-specific overrides
-{ config, pkgs, lib, inputs, ... }:
+# This is a desktop/laptop with full GUI support
+{ config, pkgs, lib, myvars, pkgs-stable, inputs, ... }:
 
 {
-  imports = [
-    ../../modules/home/core.nix
-    ../../modules/home/development.nix
-    ../../modules/home/desktop.nix
-    ../../modules/home/pi.nix
-  ];
-
-  # Enable all modules
+  # Enable all home modules
   modules.home.core.enable = true;
-  modules.home.development.enable = true;
-  modules.home.desktop.enable = true;
-  modules.home.pi.enable = true;
-
-  # Surface-specific overrides
-  # Example: Machine-specific desktop settings
-  # dconf.settings = {
-  #   "org/gnome/desktop/interface" = {
-  #     color-scheme = "prefer-dark";
-  #   };
-  # };
+  modules.home.base.development.enable = true;
+  modules.home.tui.enable = true;
+  modules.home.gui.desktop.enable = true;
+  modules.home.gui.pi.enable = true;
+  
+  # TUI tools
+  modules.home.tui.btop = true;
+  modules.home.tui.yazi = true;
+  
+  # GUI apps
+  modules.home.gui.desktop.kitty = true;
+  modules.home.gui.desktop.firefox = true;
+  modules.home.gui.desktop.darkMode = true;
+  
+  # Development tools
+  modules.home.base.development.tmux = true;
+  modules.home.base.development.mise = true;
+  modules.home.base.development.onepassword = true;
+  
+  # Pass LLM agents package to pi module
+  modules.home.gui.pi.llmAgentsPackage = inputs.llm-agents.packages.${pkgs.system}.default;
+  
+  # Pi extensions
+  modules.home.gui.pi.extensions = true;
+  
+  # Surface-specific overrides can go here
+  # Example: different git config for work vs personal
+  # programs.git.extraConfig.user.name = "Leon (Surface)";
 }
