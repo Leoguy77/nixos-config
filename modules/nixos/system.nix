@@ -1,5 +1,5 @@
 # Core system settings
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, myvars, ... }:
 
 let
   cfg = config.modules.system;
@@ -15,24 +15,24 @@ in
     };
     timeZone = lib.mkOption {
       type = lib.types.str;
-      default = "Europe/Berlin";
+      default = myvars.system.timeZone;
       description = "The time zone";
     };
     locale = lib.mkOption {
       type = lib.types.str;
-      default = "en_US.UTF-8";
+      default = myvars.system.defaultLocale;
       description = "The default locale";
     };
     keymap = lib.mkOption {
       type = lib.types.str;
-      default = "de";
+      default = myvars.system.keymap;
       description = "The console keymap";
     };
   };
 
   config = lib.mkIf cfg.enable {
     # System version
-    system.stateVersion = lib.mkDefault "24.11";
+    system.stateVersion = lib.mkDefault myvars.system.stateVersion;
 
     # Nix settings
     nix = {

@@ -1,5 +1,5 @@
 # User accounts configuration
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, myvars, ... }:
 
 let
   cfg = config.modules.users;
@@ -10,7 +10,7 @@ in
     enable = lib.mkEnableOption "users module";
     mainUser = lib.mkOption {
       type = lib.types.str;
-      default = "leoguy77";
+      default = myvars.username;
       description = "Main user account name";
     };
     userShell = lib.mkOption {
@@ -27,7 +27,7 @@ in
     # Define a user account
     users.users.${cfg.mainUser} = {
       isNormalUser = true;
-      description = lib.mkDefault "Leon";
+      description = lib.mkDefault myvars.fullName;
       extraGroups = [ 
         "networkmanager" 
         "wheel" 

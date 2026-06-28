@@ -1,12 +1,10 @@
 # Shared utility functions and helpers
+# Import this in modules via specialArgs as `mylib`
 { lib, ... }:
 
 {
   # Helper to conditionally enable features
   mkIfFeature = feature: config: lib.mkIf (feature config) config;
-  
-  # Helper for optional package lists
-  mkOptPackages = pkgs: packages: with pkgs; packages;
   
   # Common service template
   mkService = { name, enable ? true, package, ... }@args: {
@@ -35,8 +33,36 @@
   };
   
   # Default package list option
-  mkOptPackages = default: description: {
+  mkOptPkgs = default: description: {
     type = lib.types.listOf lib.types.package;
     inherit default description;
+  };
+  
+  # Auto-scan all .nix files in a directory for imports
+  # Usage: imports = mylib.scanPaths ./.;
+  scanPaths =
+    path:
+    builtins.map (f: (path + "/${f}")) (
+      builtins.attrNames (
+        lib.attrsets.filterAttrs (
+          name: type:
+          (type == "directory") ||  # Include directories
+          ((name != "default.nix") && (lib.strings.hasSuffix ".nix" name))  # Include .nix files except default.nix
+        ) (builtins.readDir path)
+      )
+    );
+  
+  # Path helper - get path relative to flake root
+  relativeToRoot = lib.path.append ../.;
+  
+  # Helper to merge attrsets recursively
+  mergeAttrs = lib.attrsets.recursiveUpdate;
+  
+  # Helper to create optional configurations
+  mkOptionalConfig = condition: config: lib.mkIf condition config;
+  
+  # Helper for common option types
+  types = {
+    inherit (lib.types) str bool int float package packages listOf attrs submodule nullOr;
   };
 }
