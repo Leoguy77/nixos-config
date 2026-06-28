@@ -36,4 +36,7 @@
   # Surface-specific overrides can go here
   # Example: different git config for work vs personal
   # programs.git.extraConfig.user.name = "Leon (Surface)";
+  
+  # Enable caffeine-ng service for system tray
+  services.caffeine.enable = true;
 }
