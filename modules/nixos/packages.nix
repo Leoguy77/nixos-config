@@ -35,6 +35,9 @@ in
       # Network tools
       networkmanagerapplet
       
+      # Power management
+      caffeine-ng  # Prevent system from sleeping
+      
       # User-provided extra packages
     ] ++ cfg.extraPackages;
   };
