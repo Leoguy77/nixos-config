@@ -18,19 +18,46 @@
     auto-cpufreq.url = "github:AdnanHodzic/auto-cpufreq";
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }@inputs: {
-    nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-
-      specialArgs = {
-        inherit inputs;
+  outputs = { self, nixpkgs, home-manager, ... }@inputs: let
+    # System architecture
+    system = "x86_64-linux";
+    
+    # Import pkgs with overlays and config
+    pkgs = import nixpkgs {
+      inherit system;
+      config.allowUnfree = true;
+    };
+    
+    # Shared special arguments for all configurations
+    specialArgs = {
+      inherit inputs;
+    };
+    
+    # Common modules for all NixOS configurations
+    commonModules = [
+      home-manager.nixosModules.home-manager
+      inputs.auto-cpufreq.nixosModules.default
+    ];
+  in {
+    # NixOS configurations
+    nixosConfigurations = {
+      surface = nixpkgs.lib.nixosSystem {
+        inherit system specialArgs;
+        modules = commonModules ++ [
+          ./hosts/surface
+        ];
       };
-
-      modules = [
-        ./configuration.nix
-        home-manager.nixosModules.home-manager
-        inputs.auto-cpufreq.nixosModules.default
-      ];
+    };
+    
+    # Home Manager standalone configurations
+    homeConfigurations = {
+      "leoguy77@surface" = home-manager.lib.homeManagerConfiguration {
+        inherit pkgs;
+        modules = [
+          ./hosts/surface/home.nix
+        ];
+        extraSpecialArgs = specialArgs;
+      };
     };
   };
 }

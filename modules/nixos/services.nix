@@ -1,56 +1,64 @@
-# System services
-{ config, pkgs, lib, ... }:
+# System services configuration
+{ config, pkgs, lib, inputs, ... }:
+
+let
+  cfg = config.modules.services;
+in
 
 {
-  # Display & Desktop
-  services = {
-    xserver = {
-      enable = true;
-      xkb = {
-        layout = "de";
-        variant = "";
-      };
-    };
+  options.modules.services = {
+    enable = lib.mkEnableOption "services module";
+    x11 = lib.mkEnableOption "X11";
+    plasma = lib.mkEnableOption "KDE Plasma";
+    pipewire = lib.mkEnableOption "PipeWire audio";
+    printing = lib.mkEnableOption "printing service";
+    ssh = lib.mkEnableOption "SSH server";
+    autoCpufreq = lib.mkEnableOption "auto-cpufreq power management";
+  };
 
-    displayManager.sddm.enable = true;
-    desktopManager.plasma6.enable = true;
+  config = lib.mkIf cfg.enable {
+    # X11
+    services.xserver.enable = lib.mkDefault cfg.x11;
 
-    # Audio
-    pipewire = {
+    # KDE Plasma
+    services.displayManager.sddm.enable = lib.mkDefault cfg.plasma;
+    services.desktopManager.plasma6.enable = lib.mkDefault cfg.plasma;
+
+    # Audio (PipeWire)
+    security.rtkit.enable = lib.mkDefault true;
+    services.pipewire = lib.mkIf cfg.pipewire {
       enable = true;
-      alsa = {
-        enable = true;
-        support32Bit = true;
-      };
+      alsa.enable = true;
+      alsa.support32Bit = true;
       pulse.enable = true;
+      jack.enable = true;
     };
 
     # Printing
-    printing.enable = true;
+    services.printing.enable = lib.mkDefault cfg.printing;
 
     # SSH
-    openssh = {
+    services.openssh = lib.mkIf cfg.ssh {
       enable = true;
       settings = {
         PasswordAuthentication = false;
         KbdInteractiveAuthentication = false;
-        PermitRootLogin = "no";
+        PermitRootLogin = lib.mkDefault "no";
       };
     };
-  };
 
-  # Power management (good for Surface/laptops)
-  services.power-profiles-daemon.enable = false;
-  services.auto-cpufreq = {
-    enable = true;
-    settings = {
-      battery = {
-        governor = "powersave";
-        turbo = "never";
-      };
-      charger = {
-        governor = "performance";
-        turbo = "auto";
+    # Auto CPU Frequency
+    services.auto-cpufreq = lib.mkIf cfg.autoCpufreq {
+      enable = true;
+      settings = {
+        battery = {
+          governor = "powersave";
+          turbo = "never";
+        };
+        charger = {
+          governor = "performance";
+          turbo = "auto";
+        };
       };
     };
   };

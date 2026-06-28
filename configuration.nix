@@ -1,5 +1,10 @@
-# Main NixOS configuration
+# Main NixOS configuration (legacy - for backwards compatibility)
 # This file imports all modular configurations
+# 
+# NOTE: The preferred way to build this system is now via flakes:
+#   sudo nixos-rebuild switch --flake .#surface
+#
+# This file is kept for compatibility with non-flake workflows
 { config, pkgs, lib, inputs, ... }:
 
 {
@@ -15,6 +20,14 @@
     ./modules/nixos/users.nix
     ./modules/nixos/security.nix
   ];
+
+  # Enable all modules
+  modules.boot.enable = true;
+  modules.system.enable = true;
+  modules.services.enable = true;
+  modules.packages.enable = true;
+  modules.users.enable = true;
+  modules.security.enable = true;
 
   # Home Manager integration
   home-manager = {

@@ -1,63 +1,41 @@
-# System packages
-{ config, pkgs, lib, inputs, ... }:
-let
-  llm-agents = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system};
-in
-{
-  # Allow unfree packages
-  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
-    "1password"
-    "1password-gui"
-    "1password-cli"
-    "code"
-    "vscode"
-  ];
+# System-wide packages
+{ config, pkgs, lib, ... }:
 
-  environment.systemPackages = with pkgs; [
-    # Essential tools
-    git
-    curl
-    wget
-    vim
-    nano
-    home-manager
-    zsh
-    
-    # System monitoring
-    htop
-    btop
-    fastfetch
-    
-    # File utilities
-    ripgrep
-    fd
-    jq
-    tree
-    file
-    
-    # Development
-    python3
-    nodejs
-    gcc
-    gnumake
-    cmake
-    
-    # Network
-    networkmanagerapplet
-    inetutils
-    mosquitto
-    
-    # Security
-    gnupg
-    age
-    
-    # Password manager
-    _1password-gui
-    
-    # LLM tools
-    llm-agents.pi
-    
-    # VSCode (FHS version for better compatibility)
-    vscode.fhs
-  ];
+let
+  cfg = config.modules.packages;
+in
+
+{
+  options.modules.packages = {
+    enable = lib.mkEnableOption "packages module";
+    extraPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ ];
+      description = "Extra system-wide packages";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    environment.systemPackages = with pkgs; [
+      # Core utilities
+      vim
+      wget
+      curl
+      git
+      
+      # System monitoring
+      htop
+      btop
+      neofetch
+      
+      # File management
+      unzip
+      p7zip
+      
+      # Network tools
+      networkmanagerapplet
+      
+      # User-provided extra packages
+    ] ++ cfg.extraPackages;
+  };
 }

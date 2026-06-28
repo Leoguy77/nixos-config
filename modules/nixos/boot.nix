@@ -2,11 +2,27 @@
 # Note: kernel modules and cpu microcode are set in hardware-configuration.nix
 { config, pkgs, lib, ... }:
 
-{
-  # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+let
+  cfg = config.modules.boot;
+in
 
-  # Firmware
-  hardware.enableRedistributableFirmware = true;
+{
+  options.modules.boot = {
+    enable = lib.mkEnableOption "boot module";
+    systemdBoot = lib.mkEnableOption "systemd-boot";
+    efi = lib.mkEnableOption "EFI variables";
+  };
+
+  config = lib.mkIf cfg.enable {
+    # Bootloader
+    boot.loader.systemd-boot = {
+      enable = lib.mkDefault cfg.systemdBoot;
+      configurationLimit = lib.mkDefault 10;
+    };
+    boot.loader.efi.canTouchEfiVariables = lib.mkDefault cfg.efi;
+    boot.loader.timeout = lib.mkDefault 3;
+
+    # Firmware
+    hardware.enableRedistributableFirmware = lib.mkDefault true;
+  };
 }
