@@ -26,7 +26,7 @@ in
       # System monitoring
       htop
       btop
-      neofetch
+      fastfetch  # Replacement for unmaintained neofetch
       
       # File management
       unzip

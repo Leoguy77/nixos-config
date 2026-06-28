@@ -30,12 +30,13 @@ in
         enable_audio_bell = lib.mkDefault false;
         window_padding_width = lib.mkDefault 10;
       };
-      theme = lib.mkDefault "Catppuccin-Mocha";
+      themeFile = lib.mkDefault "Catppuccin-Mocha";
     };
 
     # Firefox
     programs.firefox = lib.mkIf cfg.firefox {
       enable = true;
+      configPath = lib.mkDefault "${config.xdg.configHome}/mozilla/firefox";
       profiles.default = {
         id = 0;
         name = "default";

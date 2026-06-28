@@ -38,6 +38,7 @@ in
     # Yazi configuration
     programs.yazi = lib.mkIf cfg.yazi {
       enable = true;
+      shellWrapperName = "y";  # New default (was "yy" in legacy)
       settings = {
         manager = {
           show_hidden = true;

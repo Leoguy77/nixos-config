@@ -45,7 +45,7 @@ in
     # Mise (version manager)
     programs.mise = lib.mkIf cfg.mise {
       enable = true;
-      settings = {
+      globalConfig.settings = {
         legacy_version_file = true;
         trusted_config_paths = [ "~/projects" ];
       };

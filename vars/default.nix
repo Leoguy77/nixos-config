@@ -40,7 +40,7 @@
     
     # Smart home configuration
     smartHome = {
-      mqttBroker = "192.168.3.145";
+      mqttBroker = "mqtt.fd";
       zigbeeController = "192.168.3.145";
     };
   };
