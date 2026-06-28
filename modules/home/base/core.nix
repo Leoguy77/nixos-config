@@ -53,32 +53,37 @@ in
     # Git configuration
     programs.git = {
       enable = true;
-      userName = cfg.gitUserName;
-      userEmail = cfg.gitUserEmail;
-      signing = {
-        key = lib.mkDefault myvars.git.signingKey;
-        signByDefault = lib.mkDefault true;
-      };
-      extraConfig = {
+      settings = {
+        user = {
+          name = cfg.gitUserName;
+          email = cfg.gitUserEmail;
+        };
         init.defaultBranch = lib.mkDefault "main";
         pull.rebase = lib.mkDefault true;
         merge.conflictstyle = lib.mkDefault "diff3";
-        gpg.format = lib.mkDefault "ssh";
-        "gpg \"ssh\"".program = lib.mkDefault "/run/current-system/sw/bin/op-ssh-sign";
+        gpg = {
+          format = lib.mkDefault "ssh";
+          "ssh".program = lib.mkDefault "/run/current-system/sw/bin/op-ssh-sign";
+        };
+      };
+      signing = {
+        key = lib.mkDefault myvars.git.signingKey;
+        signByDefault = lib.mkDefault true;
       };
     };
 
     # SSH configuration for GitHub to use the Github key from 1Password SSH agent
     programs.ssh = {
       enable = true;
-      extraConfig = ''
-        Host github.com
-          HostName github.com
-          User git
-          IdentityFile ~/.ssh/Github
-          IdentitiesOnly yes
-          IdentityAgent ~/.1password/agent.sock
-      '';
+      settings = {
+        "github.com" = {
+          HostName = "github.com";
+          User = "git";
+          IdentityFile = "~/.ssh/Github";
+          IdentitiesOnly = true;
+          IdentityAgent = "~/.1password/agent.sock";
+        };
+      };
     };
 
     # Create Github public key file
@@ -103,7 +108,7 @@ in
         cat = lib.mkDefault "bat";
         grep = lib.mkDefault "rg";
       };
-      initExtra = lib.mkDefault ''
+      initContent = lib.mkDefault ''
         # Smart home light control
         function space {
             if [ "$1" = "off" ]; then
