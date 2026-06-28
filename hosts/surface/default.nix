@@ -47,12 +47,15 @@
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
-    extraSpecialArgs = { inherit mylib myvars pkgs-stable inputs; };
-    users.leoguy77 = {
+    extraSpecialArgs = { inherit mylib myvars pkgs-stable inputs pkgs; };
+    users.leoguy77 = { config, ... } = {
       imports = [
         ../../modules/home
         ./home.nix  # Surface-specific home overrides
       ];
+      
+      # Set stateVersion explicitly
+      home.stateVersion = myvars.system.stateVersion;
     };
   };
 }
