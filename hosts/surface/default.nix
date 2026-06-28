@@ -17,6 +17,16 @@
   
   modules.system.enable = true;
   modules.services.enable = true;
+  modules.services.x11 = true;  # Enable X11
+  modules.services.plasma = true;  # Enable KDE Plasma desktop
+  modules.services.pipewire = true;  # Enable audio
+  modules.services.printing = true;  # Enable printing
+  modules.services.ssh = true;  # Enable SSH server
+  modules.services.autoCpufreq = true;  # Enable power management
+  
+  # Disable power-profiles-daemon (conflicts with auto-cpufreq)
+  services.power-profiles-daemon.enable = false;
+  
   modules.packages.enable = true;
   modules.users.enable = true;
   modules.security.enable = true;
