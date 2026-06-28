@@ -1,9 +1,23 @@
 {
   description = "Leon's NixOS System Configuration";
 
+  # Binary cache configuration for faster builds
+  nixConfig = {
+    extra-substituters = [
+      "https://cache.nixos.org"
+      "https://nix-community.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+    ];
+  };
+
   inputs = {
-    # NixOS unstable channel
+    # NixOS unstable channel (primary)
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    
+    # NixOS stable channel (for critical packages)
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
     
     # Home Manager
     home-manager = {
@@ -16,6 +30,24 @@
     
     # Auto CPU Frequency (power management)
     auto-cpufreq.url = "github:AdnanHodzic/auto-cpufreq";
+    
+    # Pre-commit hooks for code quality
+    pre-commit-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    
+    # Secrets management (optional, uncomment when ready)
+    # agenix = {
+    #   url = "github:ryantm/agenix";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
+    
+    # Disk management (optional, for new installations)
+    # disko = {
+    #   url = "github:nix-community/disko";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
   };
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs: let
@@ -28,9 +60,19 @@
       config.allowUnfree = true;
     };
     
+    # Import stable pkgs for critical packages
+    pkgs-stable = import inputs.nixpkgs-stable {
+      inherit system;
+      config.allowUnfree = true;
+    };
+    
+    # Import custom lib and vars
+    mylib = import ./lib { inherit (nixpkgs) lib; };
+    myvars = import ./vars { inherit (nixpkgs) lib; };
+    
     # Shared special arguments for all configurations
     specialArgs = {
-      inherit inputs;
+      inherit inputs mylib myvars pkgs-stable;
     };
     
     # Common modules for all NixOS configurations
@@ -59,5 +101,70 @@
         extraSpecialArgs = specialArgs;
       };
     };
+    
+    # Development shell with essential tools
+    devShells.${system}.default = pkgs.mkShell {
+      name = "nixos-config";
+      packages = with pkgs; [
+        # Nix formatting & linting
+        nixfmt-classic
+        deadnix
+        statix
+        alejandra
+        
+        # Git tools
+        git
+        
+        # Optional: pre-commit hooks
+        # pre-commit-hooks
+      ];
+      
+      shellHook = ''
+        echo "🔧 NixOS Configuration Development Shell"
+        echo "========================================="
+        echo ""
+        echo "Available tools:"
+        echo "  - nixfmt-classic: Format Nix files"
+        echo "  - deadnix: Detect unused Nix code"
+        echo "  - statix: Lint Nix files"
+        echo "  - alejandra: Alternative Nix formatter"
+        echo ""
+        echo "Quick commands:"
+        echo "  nix fmt              # Format all Nix files"
+        echo "  nix flake check      # Check configuration"
+        echo "  nix build            # Build configuration"
+        echo ""
+      '';
+    };
+    
+    # Pre-commit checks for code quality
+    checks.${system}.pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
+      src = ./.;
+      hooks = {
+        # Nix formatting
+        nixfmt = {
+          enable = true;
+          settings.width = 100;
+        };
+        
+        # Detect unused Nix code
+        deadnix.enable = true;
+        
+        # Lint Nix files
+        statix.enable = true;
+        
+        # Spell checker (optional)
+        # typos = {
+        #   enable = true;
+        #   settings = {
+        #     write = true;
+        #     configPath = ".typos.toml";
+        #   };
+        # };
+      };
+    };
+    
+    # Formatter for nix fmt
+    formatter.${system} = pkgs.nixfmt-classic;
   };
 }
