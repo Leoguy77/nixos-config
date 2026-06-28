@@ -82,23 +82,9 @@ in
         "github.com" = {
           HostName = "github.com";
           User = "git";
-          IdentityFile = "~/.ssh/Github";
-          IdentitiesOnly = true;
           IdentityAgent = "~/.1password/agent.sock";
         };
       };
-    };
-
-    # Create Github public key file
-    home.file.".ssh/Github.pub" = {
-      text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github\n";
-      force = true;  # Overwrite existing file
-    };
-    
-    # Create Github private key file (stub - actual key is in 1Password)
-    home.file.".ssh/Github" = {
-      text = lib.mkDefault "-----BEGIN OPENSSH PRIVATE KEY-----\n-----END OPENSSH PRIVATE KEY-----\n";
-      force = true;  # Overwrite existing file
     };
 
     # Shell aliases and functions
