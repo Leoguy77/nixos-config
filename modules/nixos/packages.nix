@@ -21,6 +21,7 @@ in
     vim
     nano
     home-manager
+    zsh
     
     # System monitoring
     htop
@@ -44,6 +45,7 @@ in
     # Network
     networkmanagerapplet
     inetutils
+    mosquitto
     
     # Security
     gnupg

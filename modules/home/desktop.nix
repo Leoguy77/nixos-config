@@ -5,6 +5,8 @@
   home.packages = with pkgs; [
     # Browser
     firefox
+    # Matrix client
+    element-desktop
   ];
 
   # Kitty terminal
