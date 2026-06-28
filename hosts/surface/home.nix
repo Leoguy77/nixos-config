@@ -3,6 +3,9 @@
 { config, pkgs, lib, myvars, pkgs-stable, inputs, ... }:
 
 {
+  # Required by Home Manager
+  home.stateVersion = myvars.system.stateVersion;
+  
   # Enable all home modules
   modules.home.core.enable = true;
   modules.home.base.development.enable = true;
