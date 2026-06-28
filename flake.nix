@@ -58,6 +58,7 @@
     pkgs = import nixpkgs {
       inherit system;
       config.allowUnfree = true;
+      overlays = import ./overlays;
     };
     
     # Import stable pkgs for critical packages
