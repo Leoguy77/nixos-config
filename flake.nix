@@ -37,11 +37,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     
-    # Secrets management (optional, uncomment when ready)
-    # agenix = {
-    #   url = "github:ryantm/agenix";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    # Secrets management with agenix
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     
     # Disk management (optional, for new installations)
     # disko = {
@@ -50,7 +50,7 @@
     # };
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }@inputs: let
+  outputs = { self, nixpkgs, home-manager, agenix, ... }@inputs: let
     # System architecture
     system = "x86_64-linux";
     
@@ -72,7 +72,7 @@
     
     # Shared special arguments for all configurations
     specialArgs = {
-      inherit inputs mylib myvars pkgs-stable;
+      inherit inputs mylib myvars pkgs-stable agenix;
     };
     
     # Common modules for all NixOS configurations

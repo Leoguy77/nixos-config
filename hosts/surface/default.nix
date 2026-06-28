@@ -20,6 +20,7 @@
   modules.packages.enable = true;
   modules.users.enable = true;
   modules.security.enable = true;
+  modules.security.enableSecrets = true;  # Enable agenix secrets
 
   # Host-specific settings from vars
   networking.hostName = "surface";
