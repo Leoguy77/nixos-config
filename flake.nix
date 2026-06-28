@@ -97,6 +97,7 @@
       "leoguy77@surface" = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         modules = [
+          ./modules/home
           ./hosts/surface/home.nix
         ];
         extraSpecialArgs = specialArgs;
