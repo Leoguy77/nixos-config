@@ -87,10 +87,16 @@ in
     };
 
     # Create Github public key file
-    home.file.".ssh/Github.pub".text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMEOpEP8l Github\n";
+    home.file.".ssh/Github.pub" = {
+      text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMEOpEP8l Github\n";
+      force = true;  # Overwrite existing file
+    };
     
     # Create Github private key file (stub - actual key is in 1Password)
-    home.file.".ssh/Github".text = lib.mkDefault "-----BEGIN OPENSSH PRIVATE KEY-----\n-----END OPENSSH PRIVATE KEY-----\n";
+    home.file.".ssh/Github" = {
+      text = lib.mkDefault "-----BEGIN OPENSSH PRIVATE KEY-----\n-----END OPENSSH PRIVATE KEY-----\n";
+      force = true;  # Overwrite existing file
+    };
 
     # Shell aliases and functions
     programs.zsh = {
