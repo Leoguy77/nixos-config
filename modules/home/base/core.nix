@@ -91,7 +91,7 @@ in
 
     # Create Github public key file
     home.file.".ssh/Github.pub" = {
-      text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMEOpEP8l Github\n";
+      text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github\n";
       force = true;  # Overwrite existing file
     };
     
