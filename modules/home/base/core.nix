@@ -118,6 +118,17 @@ in
         grep = lib.mkDefault "rg";
       };
       initContent = lib.mkForce ''
+        # oh-my-zsh configuration
+        plugins=(git docker pip python)
+        ZSH_THEME="agnoster"
+        source $ZSH/oh-my-zsh.sh
+        
+        # History options
+        HISTSIZE=10000
+        SAVEHIST=10000
+        HISTFILE=~/.zsh_history
+        setopt HIST_FCNTL_LOCK HIST_IGNORE_DUPS HIST_IGNORE_SPACE SHARE_HISTORY
+        
         # Smart home light control
         function space {
             if [ "$1" = "off" ]; then
@@ -151,6 +162,22 @@ in
             mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
             mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
             mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_3/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+        }
+        
+        # Aliases
+        alias ll='eza -la --icons'
+        alias ls=eza
+        alias cat=bat
+        alias grep=rg
+        
+        # Yazi directory change function
+        function y() {
+          local tmp="$(mktemp -t "yazi-cwd.XXXXX")"
+          command yazi "$@" --cwd-file="$tmp"
+          if cwd="$(<"$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+            builtin cd -- "$cwd"
+          fi
+          rm -f -- "$tmp"
         }
       '';
     };
