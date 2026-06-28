@@ -2,11 +2,11 @@
 { config, pkgs, lib, ... }:
 
 let
-  cfg = config.modules.home.desktop;
+  cfg = config.modules.home.gui.desktop;
 in
 
 {
-  options.modules.home.desktop = {
+  options.modules.home.gui.desktop = {
     enable = lib.mkEnableOption "desktop home module";
     kitty = lib.mkEnableOption "kitty terminal";
     firefox = lib.mkEnableOption "firefox browser";

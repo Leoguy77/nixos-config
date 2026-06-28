@@ -1,5 +1,5 @@
 # Surface-specific configuration
-# This is the main entry point for the surface host
+# This is the main entry point for the surface host (desktop/laptop)
 { config, pkgs, lib, inputs, mylib, myvars, pkgs-stable, ... }:
 
 {
@@ -10,7 +10,7 @@
       ../../hardware-configuration.nix
     ];
 
-  # Enable all modules
+  # Enable all NixOS modules
   modules.boot.enable = true;
   modules.boot.systemdBoot = true;
   modules.boot.efi = true;
@@ -36,22 +36,12 @@
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
-    extraSpecialArgs = { inherit mylib myvars pkgs-stable; };
+    extraSpecialArgs = { inherit mylib myvars pkgs-stable inputs; };
     users.leoguy77 = {
-      imports =
-        mylib.scanPaths ../../modules/home
-        ++ [
-          # Surface-specific overrides can go here
-        ];
-      
-      # Enable all home modules
-      modules.home.core.enable = true;
-      modules.home.development.enable = true;
-      modules.home.desktop.enable = true;
-      modules.home.pi.enable = true;
-      
-      # Pass LLM agents package to pi module
-      modules.home.pi.llmAgentsPackage = inputs.llm-agents.packages.${pkgs.system}.default;
+      imports = [
+        ../../modules/home
+        ./home.nix  # Surface-specific home overrides
+      ];
     };
   };
 }
