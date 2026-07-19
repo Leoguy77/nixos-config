@@ -32,6 +32,17 @@
   modules.security.enable = true;
   modules.security.enableSecrets = true;  # Enable agenix secrets
 
+  # Automated encrypted backups (restic)
+  modules.backup.enable = true;
+  modules.backup.paths = [
+    "/home/${myvars.username}"
+  ];
+  # Local repository by default; change to a remote target (sftp/s3/b2)
+  # for off-machine backups. Optionally set modules.backup.passwordFile
+  # to an agenix secret path for a managed repository password.
+  # modules.backup.repository = "sftp:user@host:/srv/restic";
+  # modules.backup.passwordFile = config.age.secrets."restic-password".path;
+
   # Host-specific settings from vars
   networking.hostName = "surface";
   
