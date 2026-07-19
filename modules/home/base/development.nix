@@ -63,5 +63,19 @@ in
       };
       Install.WantedBy = [ "default.target" ];
     };
+
+    # 1Password GUI autostart
+    systemd.user.services.onepassword = lib.mkIf cfg.onepassword {
+      Unit = {
+        Description = "1Password";
+        After = [ "graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${pkgs._1password-gui}/bin/1password --silent";
+        Restart = "on-failure";
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
+    };
   };
 }
