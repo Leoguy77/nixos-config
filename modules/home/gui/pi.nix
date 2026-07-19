@@ -47,5 +47,39 @@ in
       source = piOllamaCloud;
       recursive = true;
     };
+
+    # Custom model providers (KISSKI). Safe to commit: the 1Password CLI
+    # command reads the actual API key at runtime, so no secret in the file.
+    home.file.".pi/agent/models.json".text = ''
+      {
+        "providers": {
+          "kisski": {
+            "baseUrl": "https://chat-ai.academiccloud.de/v1",
+            "api": "openai-completions",
+            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
+            "models": [
+              {
+                "id": "qwen3.5-397b-a17b",
+                "name": "Qwen 3.5 397B (KISSKI)",
+                "reasoning": true,
+                "input": ["text", "image"],
+                "contextWindow": 128000,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              },
+              {
+                "id": "deepseek-v4-flash",
+                "name": "DeepSeek V4 Flash (KISSKI)",
+                "reasoning": true,
+                "input": ["text"],
+                "contextWindow": 128000,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              }
+            ]
+          }
+        }
+      }
+    '';
   };
 }
