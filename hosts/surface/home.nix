@@ -28,7 +28,7 @@
   modules.home.base.development.onepassword = true;
   
   # Pass LLM agents package to pi module
-  modules.home.gui.pi.llmAgentsPackage = inputs.llm-agents.packages.${pkgs.system}.default;
+  modules.home.gui.pi.llmAgentsPackage = inputs.llm-agents.packages.${pkgs.system}.pi;
   
   # Pi extensions
   modules.home.gui.pi.extensions = true;
