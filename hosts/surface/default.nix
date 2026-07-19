@@ -32,6 +32,9 @@
   modules.security.enable = true;
   modules.security.enableSecrets = true;  # Enable agenix secrets
 
+  # 1Password system integration (required for `op` CLI / browser unlock)
+  modules.onepassword.enable = true;
+
   # Automated encrypted backups (restic)
   modules.backup.enable = true;
   modules.backup.paths = [

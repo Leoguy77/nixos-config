@@ -71,7 +71,10 @@ in
         PartOf = [ "graphical-session.target" ];
       };
       Service = {
-        ExecStart = "${pkgs._1password-gui}/bin/1password --silent";
+        # Use the system-wrapped binary (programs._1password-gui) so the
+        # desktop-app CLI/browser integration works. The raw store path
+        # bypasses the setuid BrowserSupport helper.
+        ExecStart = "/run/current-system/sw/bin/1password --silent";
         Restart = "on-failure";
       };
       Install.WantedBy = [ "graphical-session.target" ];

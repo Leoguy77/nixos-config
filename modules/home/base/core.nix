@@ -46,9 +46,8 @@ in
       mpv
       imagemagick
       
-      # Password manager
-      _1password-gui
-      _1password-cli
+      # Password manager: provided system-wide via programs._1password*
+      # (modules.onepassword) so the desktop-app CLI integration works.
       
       # Smart home (MQTT client)
       mosquitto
@@ -76,15 +75,32 @@ in
       };
     };
 
-    # SSH configuration for GitHub to use the Github key from 1Password SSH agent
+    # SSH configuration: use 1Password SSH agent for all connections
     programs.ssh = {
       enable = true;
+      # enableDefaultConfig must be false when manually setting defaults via settings."*"
+      enableDefaultConfig = false;
       settings = {
+        # Defaults for all hosts
+        "*" = {
+          AddKeysToAgent = "no";
+          Compression = "no";
+          ControlMaster = "no";
+          ControlPath = "~/.ssh/master-%r@%n:%p";
+          ControlPersist = "no";
+          ForwardAgent = "no";
+          HashKnownHosts = "no";
+          ServerAliveCountMax = 3;
+          ServerAliveInterval = 0;
+          UserKnownHostsFile = "~/.ssh/known_hosts";
+          IdentityAgent = "~/.1password/agent.sock";
+        };
+        # GitHub specifics
         "github.com" = {
           HostName = "github.com";
           User = "git";
           IdentityFile = "~/.ssh/Github";
-          IdentitiesOnly = true;
+          IdentitiesOnly = "yes";
           IdentityAgent = "~/.1password/agent.sock";
         };
       };
