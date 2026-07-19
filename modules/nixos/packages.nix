@@ -36,7 +36,7 @@ in
       networkmanagerapplet
       
       # Power management
-      caffeine-ng  # Prevent system from sleeping
+      # caffeine-ng is managed via Home Manager services.caffeine in per-host home.nix
       
       # User-provided extra packages
     ] ++ cfg.extraPackages;
