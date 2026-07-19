@@ -8,4 +8,5 @@
   users = ./users.nix;
   security = ./security.nix;
   backup = ./backup.nix;
+  onepassword = ./onepassword.nix;
 }
