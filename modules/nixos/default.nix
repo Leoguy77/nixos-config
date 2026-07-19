@@ -7,4 +7,5 @@
   packages = ./packages.nix;
   users = ./users.nix;
   security = ./security.nix;
+  backup = ./backup.nix;
 }

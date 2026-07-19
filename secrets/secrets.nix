@@ -25,4 +25,13 @@ in
   
   # Add your secrets here following the pattern:
   # "<filename>.age".publicKeys = [ <list of recipients> ];
+
+  # Restic backup repository password (recommended for backups):
+  #   1. Uncomment the line below.
+  #   2. Run: agenix -e restic-password.age
+  #   3. In security.nix age.secrets, add:
+  #        "restic-password".file = ../../secrets/restic-password.age;
+  #   4. In the host, set:
+  #        modules.backup.passwordFile = config.age.secrets."restic-password".path;
+  # "restic-password.age".publicKeys = [ leon surface ];
 }
