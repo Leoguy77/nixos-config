@@ -51,17 +51,16 @@ in
       };
     };
 
-    # 1Password SSH agent
-    systemd.user.services.onepassword-ssh-agent = lib.mkIf cfg.onepassword {
-      Unit = {
-        Description = "1Password SSH Agent";
-        After = [ "graphical-session.target" ];
-      };
-      Service = {
-        ExecStart = "${pkgs._1password-cli}/bin/op-ssh-sign";
-        Restart = "on-failure";
-      };
-      Install.WantedBy = [ "default.target" ];
+    # The 1Password SSH agent socket (~/.1password/agent.sock) is
+    # provided by the 1Password desktop app (autostarted below).
+    # op-ssh-sign is only used for git commit signing, not as a daemon.
+    # It's configured in programs.git.gpg.ssh.program in core.nix.
+
+    # Export SSH_AUTH_SOCK so CLI tools (ssh, ssh-add, git signing hooks)
+    # discover the 1Password agent. Without this only programs.ssh's
+    # IdentityAgent setting applies, leaving SSH_AUTH_SOCK unset in shells.
+    home.sessionVariables = lib.mkIf cfg.onepassword {
+      SSH_AUTH_SOCK = "$HOME/.1password/agent.sock";
     };
 
     # 1Password GUI autostart
