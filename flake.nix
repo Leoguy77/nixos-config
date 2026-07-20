@@ -15,34 +15,34 @@
   inputs = {
     # NixOS unstable channel (primary)
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    
+
     # NixOS stable channel (for critical packages)
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
-    
+
     # Home Manager
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    
+
     # LLM Agents
     llm-agents.url = "github:numtide/llm-agents.nix";
-    
+
     # Auto CPU Frequency (power management)
     auto-cpufreq.url = "github:AdnanHodzic/auto-cpufreq";
-    
+
     # Pre-commit hooks for code quality
     pre-commit-hooks = {
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    
+
     # Secrets management with agenix
     agenix = {
       url = "github:ryantm/agenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    
+
     # Disk management (optional, for new installations)
     # disko = {
     #   url = "github:nix-community/disko";
@@ -50,123 +50,140 @@
     # };
   };
 
-  outputs = { self, nixpkgs, home-manager, agenix, ... }@inputs: let
-    # System architecture
-    system = "x86_64-linux";
-    
-    # Import pkgs with overlays and config
-    pkgs = import nixpkgs {
-      inherit system;
-      config.allowUnfree = true;
-      overlays = import ./overlays;
-    };
-    
-    # Import stable pkgs for critical packages
-    pkgs-stable = import inputs.nixpkgs-stable {
-      inherit system;
-      config.allowUnfree = true;
-    };
-    
-    # Import custom lib and vars
-    mylib = import ./lib { inherit (nixpkgs) lib; };
-    myvars = import ./vars { inherit (nixpkgs) lib; };
-    
-    # Shared special arguments for all configurations
-    specialArgs = {
-      inherit inputs mylib myvars pkgs-stable agenix;
-    };
-    
-    # Common modules for all NixOS configurations
-    commonModules = [
-      home-manager.nixosModules.home-manager
-      inputs.auto-cpufreq.nixosModules.default
-    ];
-  in {
-    # NixOS configurations
-    nixosConfigurations = {
-      surface = nixpkgs.lib.nixosSystem {
-        inherit system specialArgs;
-        modules = commonModules ++ [
-          ./hosts/surface
-        ];
+  outputs =
+    {
+      self,
+      nixpkgs,
+      home-manager,
+      agenix,
+      ...
+    }@inputs:
+    let
+      # System architecture
+      system = "x86_64-linux";
+
+      # Import pkgs with config
+      # NOTE: Overlays are managed per-host in host configs (hosts/<host>/default.nix)
+      # via nixpkgs.overlays, so they apply to both NixOS system and Home Manager
+      # when useGlobalPkgs = true. See nixos-best-practices skill for details.
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
       };
-    };
-    
-    # Home Manager standalone configurations
-    homeConfigurations = {
-      "leoguy77@surface" = home-manager.lib.homeManagerConfiguration {
-        inherit pkgs;
-        modules = [
-          ./modules/home
-          ./hosts/surface/home.nix
-        ];
-        extraSpecialArgs = specialArgs;
+
+      # Import stable pkgs for critical packages
+      pkgs-stable = import inputs.nixpkgs-stable {
+        inherit system;
+        config.allowUnfree = true;
       };
-    };
-    
-    # Development shell with essential tools
-    devShells.${system}.default = pkgs.mkShell {
-      name = "nixos-config";
-      packages = with pkgs; [
-        # Nix formatting & linting
-        nixfmt-classic
-        deadnix
-        statix
-        alejandra
-        
-        # Git tools
-        git
-        
-        # Optional: pre-commit hooks
-        # pre-commit-hooks
+
+      # Import custom lib and vars
+      mylib = import ./lib { inherit (nixpkgs) lib; };
+      myvars = import ./vars { inherit (nixpkgs) lib; };
+
+      # Shared special arguments for all configurations
+      specialArgs = {
+        inherit
+          inputs
+          mylib
+          myvars
+          pkgs-stable
+          agenix
+          ;
+      };
+
+      # Common modules for all NixOS configurations
+      commonModules = [
+        home-manager.nixosModules.home-manager
+        inputs.auto-cpufreq.nixosModules.default
       ];
-      
-      shellHook = ''
-        echo "🔧 NixOS Configuration Development Shell"
-        echo "========================================="
-        echo ""
-        echo "Available tools:"
-        echo "  - nixfmt-classic: Format Nix files"
-        echo "  - deadnix: Detect unused Nix code"
-        echo "  - statix: Lint Nix files"
-        echo "  - alejandra: Alternative Nix formatter"
-        echo ""
-        echo "Quick commands:"
-        echo "  nix fmt              # Format all Nix files"
-        echo "  nix flake check      # Check configuration"
-        echo "  nix build            # Build configuration"
-        echo ""
-      '';
-    };
-    
-    # Pre-commit checks for code quality
-    checks.${system}.pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
-      src = ./.;
-      hooks = {
-        # Nix formatting
-        nixfmt = {
-          enable = true;
-          settings.width = 100;
+    in
+    {
+      # NixOS configurations
+      nixosConfigurations = {
+        surface = nixpkgs.lib.nixosSystem {
+          inherit system specialArgs;
+          modules = commonModules ++ [
+            ./hosts/surface
+          ];
         };
-        
-        # Detect unused Nix code
-        deadnix.enable = true;
-        
-        # Lint Nix files
-        statix.enable = true;
-        
-        # Spell checker (optional)
-        # typos = {
-        #   enable = true;
-        #   settings = {
-        #     write = true;
-        #     configPath = ".typos.toml";
-        #   };
-        # };
       };
+
+      # Home Manager standalone configurations
+      homeConfigurations = {
+        "leoguy77@surface" = home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          modules = [
+            ./modules/home
+            ./hosts/surface/home.nix
+          ];
+          extraSpecialArgs = specialArgs;
+        };
+      };
+
+      # Development shell with essential tools
+      devShells.${system}.default = pkgs.mkShell {
+        name = "nixos-config";
+        packages = with pkgs; [
+          # Nix formatting & linting
+          nixfmt-rfc-style # Replaced nixfmt-classic (removed from nixpkgs)
+          deadnix
+          statix
+          alejandra
+
+          # Git tools
+          git
+
+          # Optional: pre-commit hooks
+          # pre-commit-hooks
+        ];
+
+        shellHook = ''
+          echo "🔧 NixOS Configuration Development Shell"
+          echo "========================================="
+          echo ""
+          echo "Available tools:"
+          echo "  - nixfmt-rfc-style: Format Nix files"
+          echo "  - deadnix: Detect unused Nix code"
+          echo "  - statix: Lint Nix files"
+          echo "  - alejandra: Alternative Nix formatter"
+          echo ""
+          echo "Quick commands:"
+          echo "  nix fmt              # Format all Nix files"
+          echo "  nix flake check      # Check configuration"
+          echo "  nix build            # Build configuration"
+          echo ""
+        '';
+      };
+
+      # Pre-commit checks for code quality
+      checks.${system}.pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
+        src = ./.;
+        hooks = {
+          # Nix formatting
+          nixfmt = {
+            enable = true;
+            settings.width = 100;
+          };
+
+          # Detect unused Nix code
+          deadnix.enable = true;
+
+          # Lint Nix files
+          statix.enable = true;
+
+          # Spell checker (optional)
+          # typos = {
+          #   enable = true;
+          #   settings = {
+          #     write = true;
+          #     configPath = ".typos.toml";
+          #   };
+          # };
+        };
+      };
+
+      # Formatter for nix fmt
+      formatter.${system} = pkgs.nixfmt-rfc-style;
     };
-    
-    # Formatter for nix fmt
-    formatter.${system} = pkgs.nixfmt-classic;
-  };
 }
