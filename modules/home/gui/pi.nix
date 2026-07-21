@@ -3,22 +3,16 @@
 
 let
   cfg = config.modules.home.gui.pi;
+  pp = inputs.pi-packages.packages.${pkgs.system};
 
-  # pi-ollama-cloud: Tier A pi package (no runtime deps, only peer deps on pi core)
-  # https://www.npmjs.com/package/pi-ollama-cloud v0.7.0
-  # https://pi.dev/packages/pi-ollama-cloud
-  #
-  # Registers Ollama Cloud as a model provider with dynamically fetched models,
-  # and provides ollama_web_search / ollama_web_fetch tools.
-  ollamaCloudSrc = pkgs.fetchurl {
-    url = "https://registry.npmjs.org/pi-ollama-cloud/-/pi-ollama-cloud-0.7.0.tgz";
-    hash = "sha256-yfUlBnbNgPLtwE3jfFn8n20WF3Eu8xvdVNG/u5I+Lio=";
-  };
+  # pi-ollama-cloud: Ollama Cloud model provider
+  piOllamaCloud = pp.pi-pi-ollama-cloud;
 
-  piOllamaCloud = pkgs.runCommand "pi-pkg-ollama-cloud" { nativeBuildInputs = [ pkgs.gnutar ]; } ''
-    mkdir -p $out
-    tar -xzf ${ollamaCloudSrc} --strip-components=1 -C $out
-  '';
+  # ponytail: Concise code skill & extension
+  piPonytail = pp.pi-dietrichgebert-ponytail;
+
+  # noheadroom: Headroom context compression bridge
+  piNoheadroom = pp.pi-raquezha-noheadroom;
 
 in
 
