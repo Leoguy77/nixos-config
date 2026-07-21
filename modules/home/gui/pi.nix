@@ -26,7 +26,7 @@ let
     '';
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    outputHash = "sha256-eK8TEeywN7ssnE07Tyr22mgGV3kY9uZSGRoRbhZxhWs=";
     meta.description = "Pre-downloaded wheels for headroom-ai";
   };
 
