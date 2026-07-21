@@ -14,16 +14,30 @@ let
   # noheadroom: Headroom context compression bridge
   piNoheadroom = pp.pi-raquezha-noheadroom;
 
-  # headroom-ai: context compression proxy server (needs --option sandbox false)
+  # headroom-ai: context compression proxy server
+  # FOD: download wheels deterministically, then pure-build from them (no sandbox override)
+  headroom-wheels = pkgs.stdenv.mkDerivation {
+    name = "headroom-ai-wheels-0.32.1";
+    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel ];
+    buildCommand = ''
+      export HOME=$TMPDIR
+      mkdir -p $out
+      pip download --no-input --no-cache-dir --dest=$out "headroom-ai[proxy]==0.32.1"
+    '';
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    meta.description = "Pre-downloaded wheels for headroom-ai";
+  };
+
   headroom = pkgs.stdenv.mkDerivation {
     name = "headroom-ai-0.32.1";
     buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel ];
     buildCommand = ''
       export HOME=$TMPDIR
       mkdir -p $out/bin
-      pip install --no-input --no-cache-dir --prefix=$out "headroom-ai[proxy]==0.32.1"
+      pip install --no-input --no-index --find-links=${headroom-wheels} --prefix=$out "headroom-ai[proxy]==0.32.1"
     '';
-    __noChroot = true;
     meta.description = "Context Optimization Layer for LLM Applications";
   };
 
