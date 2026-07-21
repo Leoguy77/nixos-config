@@ -118,6 +118,15 @@ in
       force = true;  # Overwrite existing file
     };
 
+    # SUDO_ASKPASS — GUI password dialog for pi agent's sudo calls
+    home.sessionVariables.SUDO_ASKPASS = "${config.home.homeDirectory}/.config/askpass";
+
+    # Deploy askpass helper to a stable path
+    home.file.".config/askpass" = {
+      source = ./../../../askpass.sh;
+      executable = true;
+    };
+
     # Shell aliases and functions
     programs.zsh = {
       enable = true;

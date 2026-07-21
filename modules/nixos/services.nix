@@ -13,6 +13,7 @@ in
     pipewire = lib.mkEnableOption "PipeWire audio";
     printing = lib.mkEnableOption "printing service";
     ssh = lib.mkEnableOption "SSH server";
+    rdp = lib.mkEnableOption "RDP server (xrdp)";
     autoCpufreq = lib.mkEnableOption "auto-cpufreq power management";
   };
 
@@ -46,6 +47,11 @@ in
         PermitRootLogin = lib.mkDefault "no";
       };
     };
+
+    # RDP
+    services.xrdp.enable = lib.mkIf cfg.rdp true;
+    services.xrdp.defaultWindowManager = lib.mkIf cfg.rdp "startplasma-x11";
+    networking.firewall.allowedTCPPorts = lib.mkIf cfg.rdp [ 3389 ];
 
     # Auto CPU Frequency
     services.auto-cpufreq = lib.mkIf cfg.autoCpufreq {

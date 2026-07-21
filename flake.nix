@@ -42,6 +42,12 @@
       url = "github:ryantm/agenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # pi.dev packages (Nix-native, from npm tarballs)
+    pi-packages = {
+      url = "github:Leoguy77/pi-packages.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
 
     # Disk management (optional, for new installations)
     # disko = {

@@ -29,6 +29,7 @@
   modules.services.pipewire = true; # Enable audio
   modules.services.printing = true; # Enable printing
   modules.services.ssh = true; # Enable SSH server
+  modules.services.rdp = true; # Enable RDP server
   modules.services.autoCpufreq = true; # Enable power management
 
   # Disable power-profiles-daemon (conflicts with auto-cpufreq)
