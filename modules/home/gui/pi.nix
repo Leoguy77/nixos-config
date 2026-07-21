@@ -14,6 +14,20 @@ let
   # noheadroom: Headroom context compression bridge
   piNoheadroom = pp.pi-raquezha-noheadroom;
 
+  # headroom-ai: context compression proxy server (needs --option sandbox false)
+  headroom = pkgs.stdenv.mkDerivation {
+    name = "headroom-ai-0.32.1";
+    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel ];
+    buildCommand = ''
+      export HOME=$TMPDIR
+      mkdir -p $out/bin
+      pip install --no-input --no-cache-dir --prefix=$out "headroom-ai[proxy]==0.32.1"
+    '';
+    __noChroot = true;
+    meta.description = "Context Optimization Layer for LLM Applications";
+  };
+
+
 in
 
 {
@@ -29,9 +43,8 @@ in
 
   config = lib.mkIf cfg.enable {
     # Pi agent packages from flake input if provided
-    home.packages = lib.mkIf (cfg.llmAgentsPackage != null) [
-      cfg.llmAgentsPackage
-    ];
+    home.packages = (lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage)
+      ++ lib.optionals cfg.extensions [ headroom ];
 
     # pi-ollama-cloud installed as a Nix store-backed symlink in pi's extension
     # directory. Pi auto-discovers ~/.pi/agent/extensions/*/index.ts directories
