@@ -32,11 +32,12 @@ let
 
   headroom = pkgs.stdenv.mkDerivation {
     name = "headroom-ai-0.32.1";
-    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel ];
+    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel pkgs.makeWrapper ];
     buildCommand = ''
       export HOME=$TMPDIR
       mkdir -p $out/bin
       pip install --no-input --no-index --find-links=${headroom-wheels} --prefix=$out "headroom-ai[proxy]==0.32.1"
+      wrapProgram $out/bin/headroom --prefix PYTHONPATH : $out/lib/${pkgs.python3.libPrefix}/site-packages
     '';
     meta.description = "Context Optimization Layer for LLM Applications";
   };
