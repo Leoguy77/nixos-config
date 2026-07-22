@@ -49,7 +49,7 @@ in
 
     # Networking
     networking = {
-      inherit (cfg) hostName;
+      hostName = lib.mkDefault cfg.hostName;
       networkmanager.enable = lib.mkDefault true;
       firewall = {
         enable = lib.mkDefault true;
