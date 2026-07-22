@@ -8,6 +8,7 @@
   mylib,
   myvars,
   pkgs-stable,
+  agenix,
   ...
 }:
 
@@ -92,6 +93,7 @@
         pkgs-stable
         inputs
         pkgs
+        agenix
         ;
     };
     users.leoguy77 = { config, ... }: {

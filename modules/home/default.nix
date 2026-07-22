@@ -11,6 +11,9 @@
     # TUI tools (terminal UI)
     ./tui/tools.nix
     
+    # Agenix user secrets
+    ./secrets.nix
+    
     # GUI applications (desktop/laptop)
     ./gui/desktop.nix
     ./gui/pi.nix

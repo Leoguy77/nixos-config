@@ -6,9 +6,11 @@
     extra-substituters = [
       "https://cache.nixos.org"
       "https://nix-community.cachix.org"
+      "https://nix-cache.lsinfra.de/pi-packages"
     ];
     extra-trusted-public-keys = [
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "pi-packages:OF+SNU2ALJB8M+cQP/RfFOuKIOMN0w4WiV8k01pvUC4="
     ];
   };
 
@@ -49,11 +51,11 @@
     };
 
 
-    # Disk management (optional, for new installations)
-    # disko = {
-    #   url = "github:nix-community/disko";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    # Disk management for nixos-anywhere deployments
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -98,34 +100,46 @@
           ;
       };
 
-      # Common modules for all NixOS configurations
-      commonModules = [
-        home-manager.nixosModules.home-manager
-        inputs.auto-cpufreq.nixosModules.default
-      ];
-    in
-    {
-      # NixOS configurations
-      nixosConfigurations = {
-        surface = nixpkgs.lib.nixosSystem {
-          inherit system specialArgs;
-          modules = commonModules ++ [
-            ./hosts/surface
-          ];
-        };
+      # Helper: create a NixOS host config from hosts/<name>/
+      mkHost = hostname: nixpkgs.lib.nixosSystem {
+        inherit system specialArgs;
+        modules = [
+          home-manager.nixosModules.home-manager
+          inputs.auto-cpufreq.nixosModules.default
+          ./hosts/${hostname}
+        ];
       };
 
+      # Auto-discover hosts: every directory under hosts/ with a default.nix
+      hostDirs = builtins.readDir ./hosts;
+      hosts = builtins.filter (
+        name: hostDirs.${name} == "directory" && builtins.pathExists ./hosts/${name}/default.nix
+      ) (builtins.attrNames hostDirs);
+
+    in
+    {
+      # NixOS configurations — auto-discovered from hosts/<name>/default.nix
+      nixosConfigurations = builtins.listToAttrs (map (name: {
+        inherit name;
+        value = mkHost name;
+      }) hosts);
+
       # Home Manager standalone configurations
-      homeConfigurations = {
-        "leoguy77@surface" = home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
-          modules = [
-            ./modules/home
-            ./hosts/surface/home.nix
-          ];
-          extraSpecialArgs = specialArgs;
-        };
-      };
+      homeConfigurations =
+        let
+          mkHome = hostname: home-manager.lib.homeManagerConfiguration {
+            inherit pkgs;
+            modules = [
+              ./modules/home
+              ./hosts/${hostname}/home.nix
+            ];
+            extraSpecialArgs = specialArgs;
+          };
+        in
+        builtins.listToAttrs (map (name: {
+          name = "leoguy77@${name}";
+          value = mkHome name;
+        }) hosts);
 
       # Development shell with essential tools
       devShells.${system}.default = pkgs.mkShell {
