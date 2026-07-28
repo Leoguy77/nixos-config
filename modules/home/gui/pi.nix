@@ -14,6 +14,18 @@ let
   # ponytail: Concise code skill & extension
   piPonytail = pp.pi-dietrichgebert-ponytail;
 
+  # pi-lens: Real-time code feedback — LSP, linters, formatters, type-checking
+  piLens = pp.pi-pi-lens;
+
+  # pi-simplify: Code clarity & maintainability review for recently changed code
+  piSimplify = pp.pi-pi-simplify;
+
+  # pi-hermes-memory: Persistent memory + session search + secret scanning
+  piHermesMemory = pp.pi-pi-hermes-memory;
+
+  # pi-token-speed: Tokens per second measurement via sliding window
+  piTokenSpeed = pp.pi-pi-token-speed;
+
 in
 
 {
@@ -53,6 +65,30 @@ in
     home.file.".pi/agent/extensions/context-mode.ts".text = ''
       export { default } from "./context-mode/build/adapters/pi/extension.js";
     '';
+
+    # pi-lens: Real-time code feedback — LSP, linters, formatters, type-checking
+    home.file.".pi/agent/extensions/pi-lens" = lib.mkIf cfg.extensions {
+      source = piLens;
+      recursive = true;
+    };
+
+    # pi-simplify: Code clarity & maintainability review
+    home.file.".pi/agent/extensions/pi-simplify" = lib.mkIf cfg.extensions {
+      source = piSimplify;
+      recursive = true;
+    };
+
+    # pi-hermes-memory: Persistent memory + session search + secret scanning
+    home.file.".pi/agent/extensions/pi-hermes-memory" = lib.mkIf cfg.extensions {
+      source = piHermesMemory;
+      recursive = true;
+    };
+
+    # pi-token-speed: Tokens per second measurement via sliding window
+    home.file.".pi/agent/extensions/pi-token-speed" = lib.mkIf cfg.extensions {
+      source = piTokenSpeed;
+      recursive = true;
+    };
 
     # Custom model providers (KISSKI). Safe to commit: the 1Password CLI
     # command reads the actual API key at runtime, so no secret in the file.
