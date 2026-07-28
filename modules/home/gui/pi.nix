@@ -8,40 +8,11 @@ let
   # pi-ollama-cloud: Ollama Cloud model provider
   piOllamaCloud = pp.pi-pi-ollama-cloud;
 
+  # context-mode: Extended context window management
+  piContextMode = pp.pi-context-mode;
+
   # ponytail: Concise code skill & extension
   piPonytail = pp.pi-dietrichgebert-ponytail;
-
-  # noheadroom: Headroom context compression bridge
-  piNoheadroom = pp.pi-raquezha-noheadroom;
-
-  # headroom-ai: context compression proxy server
-  # FOD: download wheels deterministically, then pure-build from them (no sandbox override)
-  headroom-wheels = pkgs.stdenv.mkDerivation {
-    name = "headroom-ai-wheels-0.32.1";
-    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel ];
-    buildCommand = ''
-      export HOME=$TMPDIR
-      mkdir -p $out
-      pip download --no-input --no-cache-dir --dest=$out "headroom-ai[proxy]==0.32.1"
-    '';
-    outputHashMode = "recursive";
-    outputHashAlgo = "sha256";
-    outputHash = "sha256-eK8TEeywN7ssnE07Tyr22mgGV3kY9uZSGRoRbhZxhWs=";
-    meta.description = "Pre-downloaded wheels for headroom-ai";
-  };
-
-  headroom = pkgs.stdenv.mkDerivation {
-    name = "headroom-ai-0.32.1";
-    buildInputs = [ pkgs.python3 pkgs.python3.pkgs.pip pkgs.python3.pkgs.setuptools pkgs.python3.pkgs.wheel pkgs.makeWrapper ];
-    buildCommand = ''
-      export HOME=$TMPDIR
-      mkdir -p $out/bin
-      pip install --no-input --no-index --find-links=${headroom-wheels} --prefix=$out "headroom-ai[proxy]==0.32.1"
-      wrapProgram $out/bin/headroom --prefix PYTHONPATH : $out/lib/${pkgs.python3.libPrefix}/site-packages
-    '';
-    meta.description = "Context Optimization Layer for LLM Applications";
-  };
-
 
 in
 
@@ -58,8 +29,7 @@ in
 
   config = lib.mkIf cfg.enable {
     # Pi agent packages from flake input if provided
-    home.packages = (lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage)
-      ++ lib.optionals cfg.extensions [ headroom ];
+    home.packages = lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage;
 
     # pi-ollama-cloud installed as a Nix store-backed symlink in pi's extension
     # directory. Pi auto-discovers ~/.pi/agent/extensions/*/index.ts directories
@@ -70,6 +40,20 @@ in
       recursive = true;
     };
 
+    # context-mode installed as a directory (for module resolution) plus a .ts bridge
+    # file as the pi extension entry point. Pi discovers *.ts files at the root of the
+    # extensions directory — not subdirectories without index.ts.
+    home.file.".pi/agent/extensions/context-mode" = lib.mkIf cfg.extensions {
+      source = piContextMode;
+      recursive = true;
+    };
+
+    # Bridge entry point: pi loads this as a single-file extension; the re-export
+    # resolves to the context-mode directory next to it.
+    home.file.".pi/agent/extensions/context-mode.ts".text = ''
+      export { default } from "./context-mode/build/adapters/pi/extension.js";
+    '';
+
     # Custom model providers (KISSKI). Safe to commit: the 1Password CLI
     # command reads the actual API key at runtime, so no secret in the file.
     home.file.".pi/agent/models.json".text = ''
@@ -78,14 +62,14 @@ in
           "kisski": {
             "baseUrl": "https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
+            "apiKey": "$KISSKI_API_KEY",
             "models": [
               {
                 "id": "qwen3.5-397b-a17b",
                 "name": "Qwen 3.5 397B (KISSKI)",
                 "reasoning": true,
                 "input": ["text", "image"],
-                "contextWindow": 128000,
+                "contextWindow": 256000,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
               },
@@ -94,7 +78,7 @@ in
                 "name": "DeepSeek V4 Flash (KISSKI)",
                 "reasoning": true,
                 "input": ["text"],
-                "contextWindow": 128000,
+                "contextWindow": 1000000,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
               }
