@@ -205,6 +205,16 @@ in
           fi
           rm -f -- "$tmp"
         }
+
+        # Pi wrapper: pre-populate KISSKI_API_KEY from 1Password once per
+        # shell session.  Pi's models.json reads $KISSKI_API_KEY directly,
+        # avoiding per-key-resolution op read calls.
+        function pi() {
+          if [ -z "$KISSKI_API_KEY" ]; then
+            export KISSKI_API_KEY="$(op read 'op://gnh/Kisski/Kisski/API-Key' 2>/dev/null)"
+          fi
+          command pi "$@"
+        }
       '';
     };
 

@@ -39,6 +39,7 @@ in
       settings = {
         experimental-features = lib.mkDefault [ "nix-command" "flakes" ];
         auto-optimise-store = lib.mkDefault true;
+        trusted-users = lib.mkDefault [ "root" myvars.username ];
       };
       gc = {
         automatic = lib.mkDefault true;
