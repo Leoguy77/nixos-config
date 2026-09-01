@@ -32,6 +32,7 @@
   modules.services.ssh = true; # Enable SSH server
   modules.services.rdp = true; # Enable RDP server
   modules.services.autoCpufreq = true; # Enable power management
+  modules.services.tailscale = true; # Enable Tailscale VPN
 
   # Disable power-profiles-daemon (conflicts with auto-cpufreq)
   services.power-profiles-daemon.enable = false;

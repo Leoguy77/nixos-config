@@ -15,6 +15,7 @@ in
     ssh = lib.mkEnableOption "SSH server";
     rdp = lib.mkEnableOption "RDP server (xrdp)";
     autoCpufreq = lib.mkEnableOption "auto-cpufreq power management";
+    tailscale = lib.mkEnableOption "Tailscale VPN";
   };
 
   config = lib.mkIf cfg.enable {
@@ -66,6 +67,14 @@ in
           turbo = "auto";
         };
       };
+    };
+
+    # Tailscale VPN
+    services.tailscale = lib.mkIf cfg.tailscale {
+      enable = true;
+      # Allow traffic to/from the Tailscale interface through the firewall
+      # without relaxing reverse-path checks on the whole system.
+      openFirewall = true;
     };
   };
 }
