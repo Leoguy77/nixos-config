@@ -38,7 +38,10 @@ in
     nix = {
       settings = {
         experimental-features = lib.mkDefault [ "nix-command" "flakes" ];
-        auto-optimise-store = lib.mkDefault true;
+        # Disabled: with useGlobalPkgs + bundles, nix-store --optimise on every
+        # boot (nix-optimise.service, wantedBy=multi-user.target) makes boot
+        # take minutes on a large store. GC is still handled by nix.gc timer.
+        auto-optimise-store = lib.mkDefault false;
         trusted-users = lib.mkForce [ "root" myvars.username ];
       };
       gc = {
