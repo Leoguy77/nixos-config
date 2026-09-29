@@ -37,6 +37,13 @@
   # Disable power-profiles-daemon (conflicts with auto-cpufreq)
   services.power-profiles-daemon.enable = false;
 
+  # Force true S3 (deep) suspend instead of s2idle (Modern Standby).
+  # On s2idle the Surface stays half-awake in a backpack and drains the
+  # battery to zero, so it cold-boots on every reopen. `deep` is advertised
+  # by this firmware (see /sys/power/mem_sleep), so forcing it gives real
+  # hardware-off sleep that lasts for days on a charge.
+  boot.kernelParams = [ "mem_sleep_default=deep" ];
+
   modules.packages.enable = true;
   modules.users.enable = true;
   modules.security.enable = true;
