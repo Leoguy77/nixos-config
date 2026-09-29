@@ -23,9 +23,6 @@ let
   # pi-hermes-memory: Persistent memory + session search + secret scanning
   piHermesMemory = pp.pi-pi-hermes-memory;
 
-  # pi-token-speed: Tokens per second measurement via sliding window
-  piTokenSpeed = pp.pi-pi-token-speed;
-
 in
 
 {
@@ -84,21 +81,18 @@ in
       recursive = true;
     };
 
-    # pi-token-speed: Tokens per second measurement via sliding window
-    home.file.".pi/agent/extensions/pi-token-speed" = lib.mkIf cfg.extensions {
-      source = piTokenSpeed;
-      recursive = true;
-    };
-
     # Custom model providers (KISSKI). Safe to commit: the 1Password CLI
     # command reads the actual API key at runtime, so no secret in the file.
+    # Pi resolves !command at request time. Since 1Password caches the session,
+    # only the first call per session prompts for approval; subsequent calls
+    # are fast. No shell wrapper needed.
     home.file.".pi/agent/models.json".text = ''
       {
         "providers": {
           "kisski": {
             "baseUrl": "https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "$KISSKI_API_KEY",
+            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
             "models": [
               {
                 "id": "qwen3.5-397b-a17b",

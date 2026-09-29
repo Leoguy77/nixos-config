@@ -157,30 +157,68 @@ in
         
         # Smart home light control
         function space {
+            local mqtt_host=${myvars.networking.smartHome.mqttBroker}
+
             if [ "$1" = "off" ]; then
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_1/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_2/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_3/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sitzecke/decke_1/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sitzecke/decke_2/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/trinkregal/n_1/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/trinkregal/n_2/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_1/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/spind/set" -m "{\"state\": \"OFF\"}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/3ddruck/wand/set" -m "{\"state\": \"OFF\"}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_1/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_2/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_3/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sitzecke/decke_1/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sitzecke/decke_2/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/trinkregal/n_1/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/trinkregal/n_2/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/elektro_ecke/decke_1/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/spind/set" -m '{"state": "OFF"}'
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/3ddruck/wand/set" -m '{"state": "OFF"}'
+            elif [ -z "$1" ]; then
+                # Show current state and brightness of all space lights
+                local topics=(
+                    "zigbee2mqtt/sofaecke/decke_1"
+                    "zigbee2mqtt/sofaecke/decke_2"
+                    "zigbee2mqtt/sofaecke/decke_3"
+                    "zigbee2mqtt/sitzecke/decke_1"
+                    "zigbee2mqtt/sitzecke/decke_2"
+                    "zigbee2mqtt/trinkregal/n_1"
+                    "zigbee2mqtt/trinkregal/n_2"
+                    "zigbee2mqtt/elektro_ecke/decke_1"
+                    "zigbee2mqtt/elektro_ecke/decke_2"
+                    "zigbee2mqtt/spind"
+                    "zigbee2mqtt/3ddruck/wand"
+                )
+
+                echo "space light states:"
+                local result=$(mosquitto_sub -h "$mqtt_host" -F '%t %p' -C 11 -W 2 ''${topics[@]/#/-t } 2>/dev/null)
+
+                if [ -z "$result" ]; then
+                    echo "  (no response from MQTT broker)"
+                    return 1
+                fi
+
+                echo "$result" | while IFS= read -r line; do
+                    local topic="''${line%% *}"
+                    local payload="''${line#* }"
+                    local dev="''${topic#zigbee2mqtt/}"
+                    local state=$(echo "$payload" | sed -n 's/.*"state":"\([^"]*\)".*/\1/p')
+                    local brightness=$(echo "$payload" | sed -n 's/.*"brightness":\([0-9]*\).*/\1/p')
+                    if [ -n "$brightness" ]; then
+                        printf "  %-25s %-5s (brightness: %s)\n" "$dev" "$state" "$brightness"
+                    else
+                        printf "  %-25s %-5s\n" "$dev" "$state"
+                    fi
+                done
             else
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sofaecke/decke_3/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sitzecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/sitzecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/trinkregal/n_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/trinkregal/n_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/spind/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
-                mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/3ddruck/wand/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sofaecke/decke_3/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sitzecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/sitzecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/trinkregal/n_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/trinkregal/n_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/elektro_ecke/decke_1/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/spind/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
+                mosquitto_pub -h "$mqtt_host" -t "zigbee2mqtt/3ddruck/wand/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
             fi
         }
 
@@ -206,15 +244,6 @@ in
           rm -f -- "$tmp"
         }
 
-        # Pi wrapper: pre-populate KISSKI_API_KEY from 1Password once per
-        # shell session.  Pi's models.json reads $KISSKI_API_KEY directly,
-        # avoiding per-key-resolution op read calls.
-        function pi() {
-          if [ -z "$KISSKI_API_KEY" ]; then
-            export KISSKI_API_KEY="$(op read 'op://gnh/Kisski/Kisski/API-Key' 2>/dev/null)"
-          fi
-          command pi "$@"
-        }
       '';
     };
 
