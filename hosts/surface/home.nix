@@ -20,6 +20,18 @@
   # GUI apps
   modules.home.gui.desktop.kitty = true;
   modules.home.gui.desktop.firefox = true;
+  modules.home.gui.desktop.spotify = true;
+  modules.home.gui.desktop.element = {
+    enable = true;
+    settings = {
+      startInTray = true;
+      minimizeToTray = true;
+      autoHideMenuBar = true;
+      spellCheckerEnabled = true;
+      openAtLoginMinimised = true;
+      warnBeforeExit = true;
+    };
+  };
   modules.home.gui.desktop.darkMode = true;
   
   # Development tools
