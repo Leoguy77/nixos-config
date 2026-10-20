@@ -101,6 +101,8 @@ in
     home.packages = lib.mkMerge [
       (lib.mkIf cfg.spotify (with pkgs; [ spotify ]))
       (lib.mkIf cfg.element.enable (with pkgs; [ element-desktop ]))
+      # wl-clipboard (wl-copy/wl-paste): Wayland clipboard CLI for terminals
+      (lib.mkIf cfg.kitty [ pkgs.wl-clipboard ])
     ];
 
     # Element Matrix client
