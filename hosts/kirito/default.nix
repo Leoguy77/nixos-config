@@ -47,6 +47,13 @@
   modules.security.enable = true;
   modules.security.enableSecrets = true; # Enable agenix secrets
 
+  # flipdot Hackspace WireGuard VPN (wg0) — full NetworkManager connection
+  # (shows in the KDE NetworkManager GUI). flipdot DNS (192.168.3.254) is applied
+  # via a negative ipv4.dns-priority: preferred-but-merged while wg0 is up, so
+  # .fd names (mqtt.fd) resolve without shadowing the other resolvers.
+  modules.wireguard.enable = true;
+  modules.wireguard.address = "192.168.6.109/32"; # flipdot-assigned IP
+
   # Daily rebuild from GitHub — flake.lock updated by GitHub Action
   system.autoUpgrade = {
     enable = true;
