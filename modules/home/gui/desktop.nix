@@ -89,6 +89,11 @@ in
         id = 0;
         name = "default";
         isDefault = true;
+        # Reuse the pre-existing profile directory (created 13. Okt) so installed
+        # extensions — notably the 1Password browser extension — are preserved.
+        # Home Manager's default creates an empty 'default' profile which orphans
+        # the real profile and its extensions.
+        path = "o7xcohfs.default";
         settings = {
           "font.name.monospace.x-western" = "Fira Code";
           "browser.theme.content-theme" = lib.mkIf cfg.darkMode 0;
