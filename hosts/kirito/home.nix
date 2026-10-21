@@ -6,6 +6,9 @@
   # Required by Home Manager
   home.stateVersion = myvars.system.stateVersion;
 
+  # CLI + admin tools for this host
+  home.packages = [ pkgs.incus ]; # Incus container CLI (client)
+
   # Enable all home modules
   modules.home.core.enable = true;
   modules.home.base.development.enable = true;
