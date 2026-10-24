@@ -8,9 +8,6 @@ let
   # pi-ollama-cloud: Ollama Cloud model provider
   piOllamaCloud = pp.pi-pi-ollama-cloud;
 
-  # context-mode: Extended context window management
-  piContextMode = pp.pi-context-mode;
-
   # ponytail: Concise code skill & extension
   piPonytail = pp.pi-dietrichgebert-ponytail;
 
@@ -52,20 +49,6 @@ in
       source = piOllamaCloud;
       recursive = true;
     };
-
-    # context-mode installed as a directory (for module resolution) plus a .ts bridge
-    # file as the pi extension entry point. Pi discovers *.ts files at the root of the
-    # extensions directory — not subdirectories without index.ts.
-    home.file.".pi/agent/extensions/context-mode" = lib.mkIf cfg.extensions {
-      source = piContextMode;
-      recursive = true;
-    };
-
-    # Bridge entry point: pi loads this as a single-file extension; the re-export
-    # resolves to the context-mode directory next to it.
-    home.file.".pi/agent/extensions/context-mode.ts".text = ''
-      export { default } from "./context-mode/build/adapters/pi/extension.js";
-    '';
 
     # pi-lens: Real-time code feedback — LSP, linters, formatters, type-checking
     home.file.".pi/agent/extensions/pi-lens" = lib.mkIf cfg.extensions {
