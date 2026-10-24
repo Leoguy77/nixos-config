@@ -7,7 +7,10 @@
   home.stateVersion = myvars.system.stateVersion;
 
   # CLI + admin tools for this host
-  home.packages = [ pkgs.incus ]; # Incus container CLI (client)
+  home.packages = [
+    pkgs.incus # Incus container CLI (client)
+    pkgs.opentofu # OpenTofu — open-source Terraform (manages Incus VMs)
+  ];
 
   # Enable all home modules
   modules.home.core.enable = true;
