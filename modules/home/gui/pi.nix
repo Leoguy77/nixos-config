@@ -23,6 +23,10 @@ let
   # pi-hermes-memory: Persistent memory + session search + secret scanning
   piHermesMemory = pp.pi-pi-hermes-memory;
 
+  # pi-archimedes-sudo: Safe privileged execution — sudo_exec tool with
+  # masked password prompt + bash-sudo guard
+  piArchimedesSudo = pp.pi-pi-archimedes-sudo;
+
 in
 
 {
@@ -78,6 +82,13 @@ in
     # pi-hermes-memory: Persistent memory + session search + secret scanning
     home.file.".pi/agent/extensions/pi-hermes-memory" = lib.mkIf cfg.extensions {
       source = piHermesMemory;
+      recursive = true;
+    };
+
+    # pi-archimedes-sudo: Safe privileged execution — sudo_exec tool with
+    # masked password prompt + bash-sudo guard
+    home.file.".pi/agent/extensions/pi-archimedes-sudo" = lib.mkIf cfg.extensions {
+      source = piArchimedesSudo;
       recursive = true;
     };
 
