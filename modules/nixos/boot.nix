@@ -17,9 +17,7 @@ in
     # Bootloader
     boot.loader.systemd-boot = {
       enable = lib.mkDefault cfg.systemdBoot;
-      # Keep many entries so a failing generation leaves plenty of known-good
-      # fallbacks in the menu (was 10; autoUpgrade + GC would prune good ones).
-      configurationLimit = lib.mkDefault 40;
+      configurationLimit = lib.mkDefault 10;
     };
     boot.loader.efi.canTouchEfiVariables = lib.mkDefault cfg.efi;
     boot.loader.timeout = lib.mkDefault 3;
