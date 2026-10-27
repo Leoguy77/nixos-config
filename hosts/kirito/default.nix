@@ -40,21 +40,28 @@
   # Force true S3 (deep) suspend instead of s2idle (Modern Standby).
   # This laptop advertises deep suspend (see /sys/power/mem_sleep), so
   # forcing it gives real hardware-off sleep that drains much less battery.
-  boot.kernelParams = [ "mem_sleep_default=deep" ];
+  boot.kernelParams = [
+    "mem_sleep_default=deep"
+  ];
 
   modules.packages.enable = true;
   modules.users.enable = true;
   modules.security.enable = true;
   modules.security.enableSecrets = true; # Enable agenix secrets
 
-  # flipdot Hackspace WireGuard VPN (wg0) — full NetworkManager connection
-  # (shows in the KDE NetworkManager GUI). flipdot DNS (192.168.3.254) is applied
-  # via a negative ipv4.dns-priority: preferred-but-merged while wg0 is up, so
-  # .fd names (mqtt.fd) resolve without shadowing the other resolvers.
+  # flipdot Hackspace WireGuard VPN (wg0) — NetworkManager connection, now set up
+  # as a SAFE systemd one-shot service (flipdot-wg0) that runs in the real root
+  # AFTER boot, instead of a system.activationScript. The old activationScript
+  # ran nmcli inside the initrd (NixOS stage-1), where NetworkManager isn't up,
+  # which broke switch-root ("Switch root target contains no usable init") on
+  # all generations with wireguard enabled (11+). The service form boots fine.
   modules.wireguard.enable = true;
   modules.wireguard.address = "192.168.6.109/32"; # flipdot-assigned IP
 
-  # Daily rebuild from GitHub — flake.lock updated by GitHub Action
+  # Daily rebuild from GitHub — flake.lock updated by GitHub Action.
+  # Root cause of the past boot failures (generations 11+) was the WireGuard
+  # activationScript running nmcli in the initrd — fixed by moving it to a safe
+  # systemd service (flipdot-wg0) that runs after boot. autoUpgrade is re-enabled.
   system.autoUpgrade = {
     enable = true;
     flake = "github:Leoguy77/nixos-config#kirito";
