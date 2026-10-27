@@ -5,17 +5,11 @@ let
   cfg = config.modules.home.gui.pi;
   pp = inputs.pi-packages.packages.${pkgs.system};
 
-  # pi-ollama-cloud: Ollama Cloud model provider
-  piOllamaCloud = pp.pi-pi-ollama-cloud;
-
   # ponytail: Concise code skill & extension
   piPonytail = pp.pi-dietrichgebert-ponytail;
 
   # pi-lens: Real-time code feedback — LSP, linters, formatters, type-checking
   piLens = pp.pi-pi-lens;
-
-  # pi-simplify: Code clarity & maintainability review for recently changed code
-  piSimplify = pp.pi-pi-simplify;
 
   # pi-hermes-memory: Persistent memory + session search + secret scanning
   piHermesMemory = pp.pi-pi-hermes-memory;
@@ -23,6 +17,15 @@ let
   # pi-archimedes-sudo: Safe privileged execution — sudo_exec tool with
   # masked password prompt + bash-sudo guard
   piArchimedesSudo = pp.pi-pi-archimedes-sudo;
+
+  # billion-context: universal context-compression proxy for AI coding agents
+  piBillionContext = pp.pi-billion-context;
+
+  # bigpowers: 73 agent skills synthesizing software engineering discipline
+  piBigpowers = pp.pi-bigpowers;
+
+  # pi-web-access: web search, URL fetching, repo cloning, PDF/video extraction
+  piWebAccess = pp.pi-pi-web-access;
 
 in
 
@@ -41,37 +44,36 @@ in
     # Pi agent packages from flake input if provided
     home.packages = lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage;
 
-    # pi-ollama-cloud installed as a Nix store-backed symlink in pi's extension
-    # directory. Pi auto-discovers ~/.pi/agent/extensions/*/index.ts directories
-    # and loads them as extensions — no settings.json changes needed, no risk of
-    # clobbering user settings, works with `pi install` CLI commands.
-    home.file.".pi/agent/extensions/pi-ollama-cloud" = lib.mkIf cfg.extensions {
-      source = piOllamaCloud;
-      recursive = true;
-    };
+    # Register all pi packages declaratively in settings.json (pi's `packages`
+    # mechanism). This is the correct way to install pi packages: pi reads each
+    # package's `pi` manifest (extensions/skills/prompts), shows them as proper
+    # packages in `pi list`/`pi config`, and groups resources correctly.
+    #
+    # NOTE: do NOT symlink whole package dirs into ~/.pi/agent/extensions/ — that
+    # makes pi treat them as ad-hoc extension dirs, displaying fragment paths
+    # ("dist", "src", "pi-extension"...) instead of the package, and exposes their
+    # non-factory top-level index.js (e.g. bigpowers) which can crash pi at startup.
+    #
+    # Updates: since these come from the pi-packages flake input, bump that input
+    # (nix flake lock --update-input pi-packages) + rebuild to get new versions.
+    # Because settings.json is HOME-MANAGER-MANAGED here, do not also use `pi install`
+    # (it would need a writable settings.json and npm); manage packages from this file.
+    home.file.".pi/agent/settings.json".text = lib.mkIf cfg.extensions (builtins.toJSON {
+      lastChangelogVersion = "1.4.0";
+      packages = [
+        (toString piLens)
+        (toString piHermesMemory)
+        (toString piArchimedesSudo)
+        (toString piPonytail)
+        (toString piBillionContext)
+        (toString piWebAccess)
+        (toString piBigpowers)
+      ];
+    });
 
-    # pi-lens: Real-time code feedback — LSP, linters, formatters, type-checking
-    home.file.".pi/agent/extensions/pi-lens" = lib.mkIf cfg.extensions {
-      source = piLens;
-      recursive = true;
-    };
-
-    # pi-simplify: Code clarity & maintainability review
-    home.file.".pi/agent/extensions/pi-simplify" = lib.mkIf cfg.extensions {
-      source = piSimplify;
-      recursive = true;
-    };
-
-    # pi-hermes-memory: Persistent memory + session search + secret scanning
-    home.file.".pi/agent/extensions/pi-hermes-memory" = lib.mkIf cfg.extensions {
-      source = piHermesMemory;
-      recursive = true;
-    };
-
-    # pi-archimedes-sudo: Safe privileged execution — sudo_exec tool with
-    # masked password prompt + bash-sudo guard
-    home.file.".pi/agent/extensions/pi-archimedes-sudo" = lib.mkIf cfg.extensions {
-      source = piArchimedesSudo;
+    # pi-web-access: web search, URL fetching, repo cloning, PDF/video extraction
+    home.file.".pi/agent/extensions/pi-web-access" = lib.mkIf cfg.extensions {
+      source = piWebAccess;
       recursive = true;
     };
 
@@ -119,7 +121,7 @@ in
                 "id": "qwen3.8-27b",
                 "name": "Qwen 3.8 27B (KISSKI)",
                 "reasoning": true,
-                "input": ["text", "image", "video"],
+                "input": ["text", "image"],
                 "contextWindow": 268288,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
@@ -128,7 +130,7 @@ in
                 "id": "qwen3-omni-30b-a3b-instruct",
                 "name": "Qwen 3 Omni 30B A3B (KISSKI)",
                 "reasoning": false,
-                "input": ["text", "image", "audio"],
+                "input": ["text", "image"],
                 "contextWindow": 262144,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
@@ -155,7 +157,7 @@ in
                 "id": "glm-5.3-flash",
                 "name": "GLM 5.3 Flash (KISSKI)",
                 "reasoning": true,
-                "input": ["text", "image", "video"],
+                "input": ["text", "image"],
                 "contextWindow": 1000000,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
