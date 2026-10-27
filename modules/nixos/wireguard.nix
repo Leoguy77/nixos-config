@@ -61,48 +61,66 @@ in
   config = lib.mkIf cfg.enable {
     networking.networkmanager.enable = lib.mkDefault true;
 
-    # (Re)create wg0 as a persistent NM connection at activation, sourcing the
-    # private key from the agenix-decrypted secret. mkAfter => runs after agenix
-    # has populated the secret. Idempotent: deletes then re-adds the profile.
-    system.activationScripts.flipdotWg0 = lib.mkAfter ''
-      set -e
-      NMCLI=${pkgs.networkmanager}/bin/nmcli
-      TR=${pkgs.coreutils}/bin/tr
+    # Set up the wg0 NetworkManager connection as a systemd one-shot service that
+    # runs in the REAL ROOT after boot, once NetworkManager is up and the agenix
+    # secret is present at /run/agenix (populated during activation and carried
+    # through switch-root via the /run bind-mount).
+    #
+    # IMPORTANT: this MUST be a systemd service, NOT a system.activationScript.
+    # NixOS's new stage-1 (initrd-nixos-activation) runs activation scripts INSIDE
+    # the initrd via prepare-root, where NetworkManager is not running — so an
+    # activationScript that calls nmcli breaks switch-root with
+    # "Switch root target contains no usable init" (exactly the boot failure this
+    # fixed on generations 11+).
+    systemd.services.flipdot-wg0 = {
+      description = "Create flipdot WireGuard (wg0) NetworkManager connection";
+      after = [ "networkmanager.service" ];
+      wants = [ "networkmanager.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ pkgs.networkmanager pkgs.coreutils ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        NMCLI=${pkgs.networkmanager}/bin/nmcli
+        TR=${pkgs.coreutils}/bin/tr
 
-      KEY="$("$TR" -d ' \n' < ${lib.escapeShellArg secretPath})"
-      if [ -z "$KEY" ]; then
-        echo "flipdot: WireGuard private key empty/missing at ${lib.escapeShellArg secretPath} — skipping wg0 setup" >&2
-        exit 0
-      fi
+        KEY="$("$TR" -d ' \n' < ${lib.escapeShellArg secretPath})"
+        if [ -z "$KEY" ]; then
+          echo "flipdot-wg0: WireGuard private key empty/missing at ${lib.escapeShellArg secretPath} — skipping wg0 setup" >&2
+          exit 0
+        fi
 
-      "$NMCLI" connection delete wg0 >/dev/null 2>&1 || true
-      "$NMCLI" connection add type wireguard ifname wg0 con-name wg0 \
-        autoconnect yes \
-        wireguard.private-key "$KEY" \
-        wireguard.listen-port 51820 \
-        wireguard.peer-routes yes \
-        wireguard.ip4-auto-default-route 0 \
-        wireguard.ip6-auto-default-route 0 \
-        ipv4.method manual \
-        ipv4.addresses ${lib.escapeShellArg cfg.address} \
-        ${lib.optionalString (cfg.dns != null) "ipv4.dns ${lib.escapeShellArg cfg.dns}"} \
-        ipv4.dns-priority ${cfg.dnsPriority} \
-        ipv6.method ignore \
-        >/dev/null
+        "$NMCLI" connection delete wg0 >/dev/null 2>&1 || true
+        "$NMCLI" connection add type wireguard ifname wg0 con-name wg0 \
+          autoconnect yes \
+          wireguard.private-key "$KEY" \
+          wireguard.listen-port 51820 \
+          wireguard.peer-routes yes \
+          wireguard.ip4-auto-default-route 0 \
+          wireguard.ip6-auto-default-route 0 \
+          ipv4.method manual \
+          ipv4.addresses ${lib.escapeShellArg cfg.address} \
+          ${lib.optionalString (cfg.dns != null) "ipv4.dns ${lib.escapeShellArg cfg.dns}"} \
+          ipv4.dns-priority ${cfg.dnsPriority} \
+          ipv6.method ignore \
+          >/dev/null
 
-      # Add flipdot as a WG peer. The peer key and its properties MUST be given
-      # as a SINGLE quoted argument in nmcli's `KEY prop=val prop=val` format.
-      # Separate positional args after `+wireguard.peers` (endpoint / allowed-ips /
-      # persistent-keepalive) are invalid and abort activation with
-      #   Error: invalid <setting>.<property> 'endpoint'.
-      # For multiple allowed-ips, repeat the `allowed-ips=` token — a single
-      # comma-joined list confuses nmcli's peer parser.
-      "$NMCLI" connection modify wg0 +wireguard.peers \
-        "${peerPubkey} endpoint=${endpoint} allowed-ips=192.168.3.0/24 allowed-ips=192.168.6.0/24 persistent-keepalive=25"
+        # Add flipdot as a WG peer. The peer key and its properties MUST be given
+        # as a SINGLE quoted argument in nmcli's `KEY prop=val prop=val` format.
+        # Separate positional args after `+wireguard.peers` (endpoint / allowed-ips /
+        # persistent-keepalive) are invalid and abort activation with
+        #   Error: invalid <setting>.<property> 'endpoint'.
+        # For multiple allowed-ips, repeat the `allowed-ips=` token — a single
+        # comma-joined list confuses nmcli's peer parser.
+        "$NMCLI" connection modify wg0 +wireguard.peers \
+          "${peerPubkey} endpoint=${endpoint} allowed-ips=192.168.3.0/24 allowed-ips=192.168.6.0/24 persistent-keepalive=25"
 
-      "$NMCLI" connection reload >/dev/null 2>&1 || true
-      "$NMCLI" connection up wg0 >/dev/null 2>&1 || true
-      true
-    '';
+        "$NMCLI" connection reload >/dev/null 2>&1 || true
+        "$NMCLI" connection up wg0 >/dev/null 2>&1 || true
+        true
+      '';
+    };
   };
 }
