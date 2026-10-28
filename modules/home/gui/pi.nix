@@ -14,10 +14,6 @@ let
   # pi-hermes-memory: Persistent memory + session search + secret scanning
   piHermesMemory = pp.pi-pi-hermes-memory;
 
-  # pi-archimedes-sudo: Safe privileged execution — sudo_exec tool with
-  # masked password prompt + bash-sudo guard
-  piArchimedesSudo = pp.pi-pi-archimedes-sudo;
-
   # billion-context: universal context-compression proxy for AI coding agents
   piBillionContext = pp.pi-billion-context;
 
@@ -63,7 +59,6 @@ in
       packages = [
         (toString piLens)
         (toString piHermesMemory)
-        (toString piArchimedesSudo)
         (toString piPonytail)
         (toString piBillionContext)
         (toString piWebAccess)
@@ -75,6 +70,14 @@ in
     home.file.".pi/agent/extensions/pi-web-access" = lib.mkIf cfg.extensions {
       source = piWebAccess;
       recursive = true;
+    };
+
+    # sudo-askpass: local extension — permission-gated sudo using "sudo -A" via
+    # kdialog askpass. The password is entered in a GUI dialog and never touches
+    # the agent. See pi-extensions/sudo-askpass/index.ts. Deployed as a
+    # single-file extension (pi loads direct .ts/.js files in extensions/).
+    home.file.".pi/agent/extensions/sudo-askpass.ts" = lib.mkIf cfg.extensions {
+      source = ./../../../pi-extensions/sudo-askpass/index.ts;
     };
 
     # Custom model providers (KISSKI). Safe to commit: the 1Password CLI

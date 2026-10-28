@@ -46,6 +46,10 @@ in
       mpv
       imagemagick
       
+      # KDE askpass dialog for GUI sudo (used by SUDO_ASKPASS / .config/askpass
+      # so the pi agent can prompt for the password via a Plasma dialog)
+      kdePackages.kdialog
+      
       # Password manager: provided system-wide via programs._1password*
       # (modules.onepassword) so the desktop-app CLI integration works.
       
@@ -121,9 +125,10 @@ in
     # SUDO_ASKPASS — GUI password dialog for pi agent's sudo calls
     home.sessionVariables.SUDO_ASKPASS = "${config.home.homeDirectory}/.config/askpass";
 
-    # Deploy askpass helper to a stable path
+    # Deploy askpass helper to a stable path (lives with the sudo-askpass pi
+    # extension under pi-extensions/sudo-askpass/)
     home.file.".config/askpass" = {
-      source = ./../../../askpass.sh;
+      source = ./../../../pi-extensions/sudo-askpass/askpass.sh;
       executable = true;
     };
 
