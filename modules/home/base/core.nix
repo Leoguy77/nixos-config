@@ -126,9 +126,18 @@ in
     home.sessionVariables.SUDO_ASKPASS = "${config.home.homeDirectory}/.config/askpass";
 
     # Deploy askpass helper to a stable path (lives with the sudo-askpass pi
-    # extension under pi-extensions/sudo-askpass/)
+    # extension under pi-extensions/sudo-askpass/). Generated here so it embeds
+    # kdialog's ABSOLUTE store path — the helper must work even when the agent's
+    # bash PATH does not include the home-manager bin (which is where kdialog
+    # lives). kdialog is also declared in home.packages above.
     home.file.".config/askpass" = {
-      source = ./../../../pi-extensions/sudo-askpass/askpass.sh;
+      text = ''
+        #!/usr/bin/env bash
+        # GUI askpass helper for KDE Plasma — pops up a password dialog.
+        # Used by SUDO_ASKPASS for non-terminal sudo (e.g. pi agent).
+        # Uses kdialog's absolute store path so it works regardless of PATH.
+        exec ${lib.getExe pkgs.kdePackages.kdialog} --title "sudo" --password "Password for sudo:"
+      '';
       executable = true;
     };
 
