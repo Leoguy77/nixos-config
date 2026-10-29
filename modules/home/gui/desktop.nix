@@ -111,6 +111,7 @@ in
     ];
 
     # Element Matrix client
+    # config.json is read-only: Element never writes it, a store symlink is fine.
     xdg.configFile."Element/config.json" = lib.mkIf cfg.element.enable {
       text = builtins.toJSON {
         default_server_config = {
@@ -152,6 +153,8 @@ in
         };
         setting_defaults = {
           breadcrumbs = true;
+          # Show latest-message previews under each room in the room list.
+          "RoomList.showMessagePreview" = true;
         };
         jitsi = {
           preferred_domain = "meet.element.io";
@@ -165,8 +168,24 @@ in
       };
     };
 
-    xdg.configFile."Element/electron-config.json" = lib.mkIf cfg.element.enable {
-      text = builtins.toJSON {
+    # electron-config.json is NOT managed as an xdg.configFile: home-manager
+    # always deploys files as read-only (symlink or 0444 copy), but Element
+    # Desktop WRITES this file at startup (locale, safeStorage, tray prefs).
+    # A read-only path makes that write fail with EROFS and the app never
+    # opens. So we seed defaults once via activation and let Element own the
+    # writable file afterwards (preserves safeStorage keys at runtime).
+    home.activation.elementElectronConfig = lib.mkIf cfg.element.enable (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      f="$HOME/.config/Element/electron-config.json"
+      mkdir -p "$HOME/.config/Element"
+      # Drop a stale home-manager store symlink (read-only) so it doesn't shadow the real file.
+      if [[ -L "$f" ]] && [[ "$(readlink -f "$f")" == /nix/store/* ]]; then
+        rm -f -- "$f"
+      fi
+      # Seed defaults once; afterwards Element owns and WRITES this file, preserving
+      # runtime changes (safeStorage keys, tray prefs) across rebuilds.
+      if [[ ! -e "$f" ]]; then
+        cat > "$f" <<'EOF'
+${builtins.toJSON {
         warnBeforeExit = cfg.element.settings.warnBeforeExit;
         minimizeToTray = cfg.element.settings.minimizeToTray;
         spellCheckerEnabled = cfg.element.settings.spellCheckerEnabled;
@@ -176,10 +195,11 @@ in
         openAtLoginMinimised = cfg.element.settings.openAtLoginMinimised;
         safeStorageBackend = "kwallet6";
         locale = cfg.element.settings.locale;
-      };
-      # Don't override existing config (preserves safeStorage keys at runtime)
-      # This writes initial defaults, subsequent runs update the file
-    };
+      }}
+EOF
+        chmod 600 "$f"
+      fi
+    '');
 
     # Dark mode preference
     dconf.settings = lib.mkIf cfg.darkMode {
