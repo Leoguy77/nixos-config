@@ -1,7 +1,10 @@
 keys:
-  - &leoguy77 age1vqg33d38h5a7uryfkvry6slhct9nzpwmcahkf2dhgaqttc58a9ns24f4l3
+  - &kirito age1pr3nmcpwycezz3zc5w2ejgt7m2m46k38kufals8set4948hgss8q55vs9x
+  - &leoguy77 5C0B8600A5177230B45A66EBF7169CB8EBBAF028
 creation_rules:
   - path_regex: secrets/[^/]+\.sops\.ya?ml$
     key_groups:
       - age:
+          - *kirito
+        pgp:
           - *leoguy77
