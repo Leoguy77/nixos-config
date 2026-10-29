@@ -193,6 +193,22 @@ in
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
               }
             ]
+          },
+          "ionos": {
+            "baseUrl": "https://openai.inference.de-txl.ionos.com/v1",
+            "api": "openai-completions",
+            "apiKey": "!op read 'op://Personal/ionos basebox api cred/Anmeldedaten'",
+            "models": [
+              {
+                "id": "Qwen/Qwen3.8-27B",
+                "name": "Qwen3.8-27B",
+                "reasoning": true,
+                "input": ["text", "image"],
+                "contextWindow": 262144,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              }
+            ]
           }
         }
       }
