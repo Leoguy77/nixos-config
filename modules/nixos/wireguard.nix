@@ -12,10 +12,10 @@
 #    get flipdot DNS *first but still merged*, and it's conditional: while wg0 is
 #    up NM pushes it via resolvconf, when the tunnel drops the DNS entry goes too.
 #
-# Security: the WireGuard private key lives in agenix
-# (secrets/machine/kirito/wg0-private.age, encrypted to your keys + host key) and
-# is injected into the NM connection at activation time, so it is never committed
-# in plaintext and never baked into the Nix store.
+# Security: the WireGuard private key lives in sops (sops-nix).
+# (secrets/secrets.sops.yaml -> wg0_private_key -> /run/secrets/wg0_private_key)
+# and is injected into the NM connection at activation time, so it is never
+# committed in plaintext and never baked into the Nix store.
 {
   config,
   pkgs,
@@ -25,8 +25,8 @@
 
 let
   cfg = config.modules.wireguard;
-  secretName = "machine/kirito/wg0-private.age";
-  secretPath = config.age.secrets.${secretName}.path;
+  secretName = "wg0_private_key";
+  secretPath = config.sops.secrets.${secretName}.path;
   # flipdot server (static, from the wiki)
   peerPubkey = "ymxWuu5f3nU/JjsZNDlBb4f0e9msRLk6cai/nQm2PlI=";
   endpoint = "157.90.144.95:51222";
@@ -62,9 +62,9 @@ in
     networking.networkmanager.enable = lib.mkDefault true;
 
     # Set up the wg0 NetworkManager connection as a systemd one-shot service that
-    # runs in the REAL ROOT after boot, once NetworkManager is up and the agenix
-    # secret is present at /run/agenix (populated during activation and carried
-    # through switch-root via the /run bind-mount).
+    # runs in the REAL ROOT after boot, once NetworkManager is up and the sops
+    # secret is present at /run/secrets/wg0_private_key (populated during
+    # activation and carried through switch-root via the /run bind-mount).
     #
     # IMPORTANT: this MUST be a systemd service, NOT a system.activationScript.
     # NixOS's new stage-1 (initrd-nixos-activation) runs activation scripts INSIDE

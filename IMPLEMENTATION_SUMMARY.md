@@ -303,7 +303,7 @@ See `IMPROVEMENTS_FROM_RYAN4YIN.md` for details.
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) - Inspiration
 - [ryan4yin/nixos-and-flakes-book](https://github.com/ryan4yin/nixos-and-flakes-book) - Learning resource
 - [git-hooks.nix](https://github.com/cachix/git-hooks.nix) - Pre-commit hooks
-- [agenix](https://github.com/ryantm/agenix) - Secrets management
+- [sops-nix](https://github.com/Mic92/sops-nix) - Secrets management
 - [disko](https://github.com/nix-community/disko) - Disk layouts
 
 ---

@@ -8,7 +8,6 @@
   mylib,
   myvars,
   pkgs-stable,
-  agenix,
   ...
 }:
 
@@ -47,7 +46,6 @@
   modules.packages.enable = true;
   modules.users.enable = true;
   modules.security.enable = true;
-  modules.security.enableSecrets = true; # Enable agenix secrets
 
   # ponytail: daily rebuild from GitHub — flake.lock updated by GitHub Action
   system.autoUpgrade = {
@@ -71,9 +69,9 @@
   ];
   # Local repository by default; change to a remote target (sftp/s3/b2)
   # for off-machine backups. Optionally set modules.backup.passwordFile
-  # to an agenix secret path for a managed repository password.
+  # to a sops secret path for a managed repository password.
   # modules.backup.repository = "sftp:user@host:/srv/restic";
-  # modules.backup.passwordFile = config.age.secrets."restic-password".path;
+  # modules.backup.passwordFile = config.sops.secrets."restic-password".path;
 
   # Host-specific settings from vars
   networking.hostName = "surface";
@@ -101,7 +99,6 @@
         pkgs-stable
         inputs
         pkgs
-        agenix
         ;
     };
     users.leoguy77 = { config, ... }: {
