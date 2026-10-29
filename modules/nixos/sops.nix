@@ -8,8 +8,9 @@
   sops = {
     defaultSopsFile = ../../secrets/secrets.sops.yaml;
 
-    # Same age identity the home sops config uses (root reads it at activation).
-    age.keyFile = "/home/leoguy77/.config/sops/age/keys.txt";
+    # Decrypt with the machine's SSH host key (sops-nix converts it to an age
+    # identity internally, so it works even though raw age can't use host keys).
+    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 
     secrets.wg0_private_key = { };
   };
