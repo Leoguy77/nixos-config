@@ -70,6 +70,9 @@ in
         merge.conflictstyle = lib.mkDefault "diff3";
         gpg = {
           format = lib.mkDefault "ssh";
+          # git invokes this program itself; it resolves the matching private
+          # key from the 1Password vault (item "Github") via the public key
+          # git provides. No wrapper needed.
           "ssh".program = lib.mkDefault "/run/current-system/sw/bin/op-ssh-sign";
         };
       };
