@@ -100,6 +100,7 @@
         inputs
         pkgs
         ;
+      sops-nix = inputs."sops-nix";
     };
     users.leoguy77 = { config, ... }: {
       imports = [
