@@ -10,9 +10,9 @@
     
     # TUI tools (terminal UI)
     ./tui/tools.nix
-    
-    # Agenix user secrets
-    ./secrets.nix
+
+    # sops (sops-nix) secrets
+    ./sops.nix
     
     # GUI applications (desktop/laptop)
     ./gui/desktop.nix

@@ -7,7 +7,7 @@
 #   modules.backup.enable = true;
 #   modules.backup.paths = [ "/home/leoguy77" "/etc/nixos" ];
 #
-# The repository password can be provided either via an agenix secret
+# The repository password can be provided either via a sops secret
 # (recommended) or a plain file. See modules.backup.passwordFile.
 { config, pkgs, lib, myvars, ... }:
 
@@ -56,11 +56,11 @@ in
     passwordFile = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      example = "/run/agenix/restic-password";
+      example = "/run/secrets/restic_password";
       description = ''
         Path to a file containing the restic repository password.
-        Recommended: point this at an agenix secret, e.g.
-        config.age.secrets."restic-password".path.
+        Recommended: point this at a sops secret, e.g.
+        config.sops.secrets."restic-password".path.
         If null, a file is generated at /var/backup/restic-password on
         first activation (local repositories only, not encrypted at rest
         beyond file permissions).
@@ -102,7 +102,7 @@ in
 
     # Auto-generate a local password file when none is provided.
     # Only meaningful for local repositories; remote users should supply
-    # passwordFile explicitly (ideally via agenix).
+    # passwordFile explicitly (ideally via sops).
     systemd.services.restic-password-init = lib.mkIf (cfg.passwordFile == null) {
       description = "Generate restic repository password if missing";
       wantedBy = [ "multi-user.target" ];

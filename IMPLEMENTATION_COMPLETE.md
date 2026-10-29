@@ -74,56 +74,51 @@ modules.home.tui.enable = true;
 
 ---
 
-## ✅ Feature B: Agenix Secrets Management
+## ✅ Feature B: Secrets Management (sops-nix)
 
 ### What Was Implemented
 
-**Complete encrypted secrets management:**
+**Encrypted secrets management (migrated from agenix to sops-nix):**
 
 ```
 secrets/
-├── .gitkeep              # Placeholder
-├── secrets.nix           # Secret definitions & recipients
-└── (your .age files)     # Encrypted secrets
+├── secrets.sops.yaml       # Single encrypted secrets file
+.sops.yaml                  # sops creation rules (age recipient)
+modules/{home,nixos}/sops.nix  # sops-nix wiring
+~/.config/sops/age/keys.txt # Decryption identity (private — back up)
 ```
 
-**Integrated with NixOS:**
+**Integrated with NixOS & Home Manager:**
 
-- Added agenix flake input
-- Updated security.nix module
-- Enabled in Surface host
-- Comprehensive documentation
+- Added sops-nix flake input
+- System secret `wg0_private_key` -> `/run/secrets/wg0_private_key` (WireGuard)
+- Home secret `pi_mcp_json` -> `~/.pi/agent/mcp.json` (pi HA MCP)
 
 ### Benefits
 
 - ✅ **Security** - All secrets encrypted with age
 - ✅ **Git-safe** - Commit encrypted secrets to repository
-- ✅ **Flexible** - Support for SSH keys, age keys, host keys
-- ✅ **Multi-user** - Multiple recipients per secret
+- ✅ **No store leaks** - Plaintext only exists at runtime paths
 
 ### Usage
 
 ```bash
-# Install agenix CLI
-nix profile install github:ryantm/agenix
+# Create / back up the age identity
+age-keygen -o ~/.config/sops/age/keys.txt
 
-# Create a secret
-echo "my-token" > secrets/api-token.age
-agenix -e secrets/api-token.age
-
-# Define recipients in secrets/secrets.nix
-# Use in NixOS modules
-age.secrets."api-token".file = ../../secrets/api-token.age;
+# Edit & re-encrypt the secrets file (opens $EDITOR)
+sops secrets/secrets.sops.yaml
 ```
 
 ### Files Modified/Created
 
-- `flake.nix` (added agenix input)
-- `modules/nixos/security.nix` (added agenix integration)
-- `hosts/surface/default.nix` (enabled secrets)
-- `secrets/.gitkeep` (new)
-- `secrets/secrets.nix` (new)
-- `SECRETS.md` (comprehensive guide)
+- `flake.nix` (added sops-nix input, removed agenix)
+- `modules/nixos/sops.nix` (new) - system secrets
+- `modules/home/sops.nix` (new) - home secrets
+- `modules/nixos/security.nix` (removed agenix enableSecrets)
+- `modules/{nixos,home}/secrets.nix` (deleted - agenix)
+- `secrets/secrets.sops.yaml` (new, encrypted)
+- `SECRETS.md` (rewritten as sops guide)
 
 ---
 
@@ -197,7 +192,7 @@ overlays/
 
 1. **Add actual secrets** - Encrypt your SSH keys, API tokens
    ```bash
-   agenix -e secrets/ssh-key.age
+   sops secrets/secrets.sops.yaml   # add keys, save to re-encrypt
    ```
 
 2. **Create custom overlays** - Override packages you use
@@ -230,7 +225,7 @@ overlays/
 
 ## 📚 Documentation Created
 
-1. **SECRETS.md** - Complete agenix guide
+1. **SECRETS.md** - Complete sops guide
 2. **overlays/README.md** - Overlay examples and patterns
 3. **IMPLEMENTATION_COMPLETE.md** - This file
 
@@ -251,14 +246,17 @@ overlays/
 }
 ```
 
-### Agenix Secrets
+### sops Secrets
 
 ```bash
-# Create/edit secret
-agenix -e secrets/my-secret.age
+# Create/back up the age identity
+age-keygen -o ~/.config/sops/age/keys.txt
 
-# Use in NixOS
-age.secrets."my-secret".file = ../../secrets/my-secret.age;
+# Edit the secrets file
+sops secrets/secrets.sops.yaml
+
+# Consume in NixOS
+config.sops.secrets."my-secret".path
 ```
 
 ### Custom Overlays

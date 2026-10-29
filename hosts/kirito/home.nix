@@ -51,6 +51,9 @@
   # Pi extensions
   modules.home.gui.pi.extensions = true;
 
+  # sops secrets (home-manager) — writes pi's HA MCP config
+  modules.home.sops.enable = true;
+
   # Enable caffeine-ng service for system tray
   services.caffeine.enable = true;
 }

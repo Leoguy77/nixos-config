@@ -1,235 +1,102 @@
-# Secrets Management with Agenix
+# Secrets Management with sops-nix
 
 ## 🔐 Overview
 
-This configuration uses [agenix](https://github.com/ryantm/agenix) for encrypted secrets management. Secrets are encrypted with age encryption and can only be decrypted by authorized recipients.
+This configuration uses **[sops](https://github.com/getsops/sops)** + **[sops-nix](https://github.com/Mic92/sops-nix)** for encrypted secrets. Secrets are encrypted with an **age** key and decrypted at activation into runtime paths (home-level and system-level), so plaintext never lands in the Nix store or git.
+
+Migrated from agenix in [this change]; the agenix `.age` files and modules are gone.
 
 ## 📁 Structure
 
 ```
 secrets/
-├── .gitkeep              # Placeholder (safe to commit)
-├── secrets.nix           # Secret definitions & recipients (safe to commit)
-├── ssh-key.age           # Encrypted SSH key (example)
-├── api-token.age         # Encrypted API token (example)
-└── ...                   # Add your secrets here
+├── secrets.sops.yaml        # The single encrypted secrets file (safe to commit)
+.sops.yaml                   # sops creation rules (age recipient) — safe to commit
+modules/home/sops.nix        # home-manager sops: writes ~/.pi/agent/mcp.json
+modules/nixos/sops.nix       # NixOS sops: wg0 private key -> /run/secrets/wg0_private_key
+~/.config/sops/age/keys.txt  # Decryption identity — DO NOT COMMIT, BACK IT UP
 ```
 
-## 🚀 Quick Start
+| Secret | Consumed by | Decrypted to |
+|---|---|---|
+| `pi_mcp_json` | pi (`~/.pi/agent/mcp.json`) | `~/.pi/agent/mcp.json` |
+| `wg0_private_key` | flipdot WireGuard (NM) | `/run/secrets/wg0_private_key` |
 
-### 1. Install Agenix CLI
+## 🔑 The age identity
+
+sops encrypts to an age public key; sops-nix decrypts with the matching private key file:
 
 ```bash
-# One-time installation
-nix profile install github:ryantm/agenix
+age-keygen -o ~/.config/sops/age/keys.txt
+age-keygen -y ~/.config/sops/age/keys.txt   # the age1… public key
 ```
 
-### 2. Create Your First Secret
+**Back up `~/.config/sops/age/keys.txt`.** Losing it means losing every secret.
+Both the home and NixOS sops modules point `age.keyFile` at this file.
+
+> Why age, not SSH keys? age cannot use SSH **host** keys, and the age + agenix
+> builds on this box have no SSH-key support at all — which is why the earlier
+> ssh-to-age attempt failed. An age key is the reliable, universal path.
+
+## ➕ Adding a secret
+
+1. Write the plaintext key(s), then encrypt:
 
 ```bash
-# Create an encrypted secret
-echo "my-super-secret-value" > secrets/my-secret.age
-
-# Edit with your favorite editor (automatically encrypts)
-agenix -e secrets/my-secret.age
+cd ~/Desktop/Code/nixos-config
+sops secrets/secrets.sops.yaml            # opens $EDITOR on decrypted copy
 ```
 
-### 3. Define Recipients
+2. (or set a single key non-interactively:)
+```bash
+sops --set '["mykey"] "myvalue"' secrets/secrets.sops.yaml
+```
 
-Edit `secrets/secrets.nix`:
+3. Declare it in the relevant sops module, e.g. for a system (root) secret:
 
 ```nix
-let
-  leon = "ssh-rsa AAAA...";  # Your SSH public key
-  surface = "ssh-ed25519 AAAA...";  # Host SSH key
-in
-{
-  "my-secret.age".publicKeys = [ leon surface ];
-}
+# modules/nixos/sops.nix
+sops.secrets."mykey" = { };
 ```
 
-### 4. Use in Configuration
+and consume it at `config.sops.secrets."mykey".path`.
 
-In your NixOS modules:
+## 🔎 Reading a secret
 
-```nix
-{ config, agenix, ... }:
-
-{
-  imports = [ agenix.nixosModules.default ];
-  
-  age.secrets = {
-    "my-secret".file = ../secrets/my-secret.age;
-  };
-  
-  # Access the secret
-  environment.variables.MY_SECRET = config.age.secrets.my-secret.path;
-}
+```bash
+sops -d secrets/secrets.sops.yaml         # prints all decrypted values
 ```
 
-## 🔑 Recipients
+## 🔁 Editing / rotating / re-encrypting
 
-Secrets can be decrypted by:
+- **Change a value:** `sops secrets/secrets.sops.yaml`, edit, save.
+- **Add a recipient (new machine/key):** add the age pubkey to the
+  `keys` / `creation_rules` in `.sops.yaml`, then re-encrypt the file with
+  `sops --rotate` (or `sops updatekeys`). Existing `data` values re-encrypt to
+  the new key set.
 
-### SSH Public Keys
-```nix
-leon = "ssh-rsa AAAAB3NzaC1yc2E...";
-```
+## ⚠️ Important notes
 
-### SSH Key Files
-```nix
-"/home/leon/.ssh/id_ed25519.pub"
-```
-
-### Age Public Keys
-```nix
-age1...  # Get with: age-keygen -y key.txt
-```
-
-## 📝 Common Use Cases
-
-### SSH Host Keys
-```nix
-# secrets/secrets.nix
-{
-  "ssh-host-key.age".publicKeys = [ leon surface ];
-}
-
-# modules/nixos/services.nix
-age.secrets."ssh-host-key".file = ../../secrets/ssh-host-key.age;
-age.secrets."ssh-host-key".path = "/etc/ssh/ssh_host_ed25519_key";
-age.secrets."ssh-host-key".mode = "600";
-age.secrets."ssh-host-key".owner = "root";
-```
-
-### API Tokens
-```nix
-# secrets/secrets.nix
-{
-  "github-token.age".publicKeys = [ leon ];
-}
-
-# modules/home/development.nix
-age.secrets."github-token".file = ../../secrets/github-token.age;
-home.sessionVariables.GITHUB_TOKEN = config.age.secrets."github-token".path;
-```
-
-### Database Passwords
-```nix
-# secrets/secrets.nix
-{
-  "db-password.age".publicKeys = [ leon surface ];
-}
-
-# modules/nixos/services.nix
-age.secrets."db-password".file = ../../secrets/db-password.age;
-services.postgresql.extraConfig = ''
-  password ${config.age.secrets."db-password".path}
-'';
-```
-
-## 🔒 Security Best Practices
-
-1. **Never commit unencrypted secrets** - Only `.age` files should be in git
-2. **Limit recipients** - Only add keys that actually need access
-3. **Rotate secrets regularly** - Update and re-encrypt periodically
-4. **Use host keys for services** - Services should use host SSH keys, not user keys
-5. **Backup your keys** - If you lose all recipient keys, secrets are unrecoverable
+1. **Only the encrypted `secrets.sops.yaml` should be committed** — never a
+   plaintext copy, never the age private key.
+2. **Backup** `~/.config/sops/age/keys.txt` and the sops file.
+3. **Apply changes:** `home-manager switch --flake .#leoguy77@kirito` for
+   home secrets; `sudo nixos-rebuild switch --flake .` for system secrets.
+4. `sops.nix` hardcodes `/home/leoguy77/.config/sops/age/keys.txt` — fine on
+   kirito; a different host needs its own key path.
 
 ## 🛠️ Commands
 
-### Encrypt a Secret
-```bash
-agenix -e secrets/my-secret.age
-```
-
-### Decrypt a Secret
-```bash
-agenix -d secrets/my-secret.age
-```
-
-### Edit a Secret
-```bash
-agenix -e secrets/my-secret.age  # Opens in $EDITOR
-```
-
-### List Secrets
-```bash
-agenix -l
-```
-
-### Re-encrypt with Updated Recipients
-```bash
-# Update secrets.nix with new recipients, then:
-agenix -r  # Re-encrypt all secrets
-```
-
-## 📚 Examples
-
-### Example: secrets/secrets.nix
-```nix
-let
-  # User keys
-  leon = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDAj4xwu7D5e0hN7+Tr46JZhvPGc/EehC7R22xAaHiypvU/620JZSakZID5+D6oIrG0z+my3BoweV+O3DpBoPvN9OOBlP05HsDf9AUY99io5wfWKkAKUZnXTHVoORwA/xp5DMHuPTS8cLKmqwBtAcEhL9+q4lVjDjZhagR69J7DycAC678YBZrH3g0yuciJBAaTIvZPDvlTeZHc3piKrlYRdjhFq6PJ8K7fi/RhtMOLDCFHV8kv71uV7+rD+isyPYhj3OAR2tyQxoBhxdqIQM7w+rPgm5km7rh58ErlWXC0ZsllPbLz/LVsoNPSq2GqnGGILb7vZE3ytD4lqEO1fhv4nXN7OlZPLO73Ti4b/RetqsmA0y6Yf58yLU+aTGTlZ6ytKd2gJx5/ne0jgoCV9fFaVnpxD0TBw0ME5jyABby9OlzpUm4Pheu/b3SSeH2/vYBLr/dAPLAd7ARz9ZP1BGm5BHjwWtsTrzsr3aRR+00o2VFLQcrwJyqGTwWzNvA0THfe5HS/+EZg142XgyI+nhm9vYI6rIXfnISYi4p+3TF0aUzAlWRy0LH/4UMCjQiCCEvBz9azPWecehUxCCfMAkIZQtc5MVcwz5kuNlgWYBBKF7aDCUHEG7GEG6Lm0U6eHfqkI48ajCCwvsMZmERuKtLr8vl9FbjucoGcp8Bp1XqXuw==";
-  
-  # Host keys (get with: ssh-keyscan -t ed25519 hostname)
-  surface = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI...";
-  
-in
-{
-  # User-only secrets
-  "personal-token.age".publicKeys = [ leon ];
-  
-  # Host + user secrets (for services)
-  "ssh-host-key.age".publicKeys = [ leon surface ];
-  "database-password.age".publicKeys = [ leon surface ];
-}
-```
-
-### Example: Using in NixOS Module
-```nix
-{ config, pkgs, lib, agenix, ... }:
-
-{
-  imports = [ agenix.nixosModules.default ];
-  
-  age.secrets = {
-    "github-token".file = ../../secrets/github-token.age;
-    "ssh-host-key".file = ../../secrets/ssh-host-key.age;
-    "ssh-host-key".path = "/etc/ssh/ssh_host_ed25519_key";
-    "ssh-host-key".mode = "600";
-    "ssh-host-key".owner = "root";
-  };
-  
-  # Use in environment
-  environment.variables.GITHUB_TOKEN = config.age.secrets."github-token".path;
-  
-  # Use in service
-  services.openssh.hostKeys = [
-    {
-      path = config.age.secrets."ssh-host-key".path;
-      type = "ed25519";
-    }
-  ];
-}
-```
+| Action | Command |
+|---|---|
+| Encrypt in place | `sops --encrypt --in-place secrets/secrets.sops.yaml` |
+| Decrypt to stdout | `sops -d secrets/secrets.sops.yaml` |
+| Edit (decrypt→edit→encrypt) | `sops secrets/secrets.sops.yaml` |
+| Add a key | `sops --set '["k"] "v"' secrets/secrets.sops.yaml` |
+| Rotate/re-encrypt | `sops --rotate secrets/secrets.sops.yaml` |
 
 ## 🔗 Resources
 
-- [Agenix GitHub](https://github.com/ryantm/agenix)
-- [Age Encryption](https://age-encryption.org/)
-- [NixOS Secrets Management](https://nixos.wiki/wiki/Secrets_Management)
-
----
-
-## ⚠️ Important Notes
-
-1. **Host SSH keys** are auto-generated by NixOS on first boot
-2. **Get host public keys** with: `ssh-keyscan -t ed25519 hostname`
-3. **Test secrets** after building: `sudo cat /run/agenix/<secret>.age`
-4. **Backup secrets.nix** - it contains your recipient list
-
----
-
-**Status:** ✅ Configured and Ready
-**Last Updated:** 2026-06-28
+- [sops](https://github.com/getsops/sops)
+- [sops-nix](https://github.com/Mic92/sops-nix)
+- [age](https://age-encryption.org/)

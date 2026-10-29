@@ -39,9 +39,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Secrets management with agenix
-    agenix = {
-      url = "github:ryantm/agenix";
+    # Secrets management with sops (sops-nix)
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # pi.dev packages (Nix-native, from npm tarballs)
@@ -63,7 +63,6 @@
       self,
       nixpkgs,
       home-manager,
-      agenix,
       ...
     }@inputs:
     let
@@ -96,8 +95,8 @@
           mylib
           myvars
           pkgs-stable
-          agenix
           ;
+        sops-nix = inputs."sops-nix";
       };
 
       # Helper: create a NixOS host config from hosts/<name>/

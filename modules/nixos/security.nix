@@ -10,7 +10,6 @@ in
   options.modules.security = {
     enable = lib.mkEnableOption "security module";
     sudo = lib.mkEnableOption "sudo access for wheel group";
-    enableSecrets = lib.mkEnableOption "agenix secrets management (old alias, use modules.secrets)";
   };
 
   config = lib.mkIf cfg.enable {
@@ -22,8 +21,5 @@ in
 
     # Polkit for privilege escalation
     security.polkit.enable = lib.mkDefault true;
-
-    # Forward old enableSecrets to the new secrets module
-    modules.secrets.enable = lib.mkDefault cfg.enableSecrets;
   };
 }

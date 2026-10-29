@@ -202,44 +202,39 @@ home/hosts/linux/
 
 ---
 
-### 6. **Secrets Management with agenix**
+### 6. **Secrets Management with sops-nix**
 
-**Ryan's Approach:**
+**Approach (now in use):**
 ```nix
+# flake.nix
 inputs = {
-  agenix = {
-    url = "github:ryantm/agenix";
+  sops-nix = {
+    url = "github:Mic92/sops-nix";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 };
 ```
 
-**Your Current Setup:**
-- SSH keys stored in plain text (stub files)
+**Current Setup:**
+- All secrets in a single sops-encrypted file `secrets/secrets.sops.yaml`
+- Age identity at `~/.config/sops/age/keys.txt` (BACK IT UP — losing it loses everything)
 
-**Recommendation:**
+**Module wiring:**
 ```nix
-# Add to flake.nix
-inputs = {
-  agenix.url = "github:ryantm/agenix";
-};
-
-# secrets/ssh-key.age (encrypted)
-# modules/nixos/security.nix
-{ agenix, ... }:
+# modules/nixos/sops.nix (system secrets, e.g. wireguard private key)
+{ config, pkgs, lib, sops-nix, ... }:
 {
-  imports = [ agenix.nixosModules.default ];
-  
-  age = {
-    identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets = {
-      "ssh-key".file = ../secrets/ssh-key.age;
-    };
+  imports = [ sops-nix.nixosModules.sops ];
+  sops = {
+    defaultSopsFile = ../../secrets/secrets.sops.yaml;
+    age.keyFile = "/home/leoguy77/.config/sops/age/keys.txt";
+    secrets.wg0_private_key = { };
   };
 }
 ```
 
-**Benefit:** Encrypted secrets in git, safe to share publicly.
+**Benefit:** Encrypted secrets in git, decrypted at activation into runtime
+paths (`/run/secrets`, home-config paths) — safe to share publicly.
 
 ---
 
@@ -540,7 +535,7 @@ Add `devShells` to your `flake.nix`.
 
 - [Ryan's NixOS & Flakes Book](https://github.com/ryan4yin/nixos-and-flakes-book) - Comprehensive guide
 - [Ryan's i3-kickstarter](https://github.com/ryan4yin/nix-config/tree/i3-kickstarter) - Simpler starting point
-- [agenix](https://github.com/ryantm/agenix) - Secrets management
+- [sops-nix](https://github.com/Mic92/sops-nix) - Secrets management
 - [disko](https://github.com/nix-community/disko) - Declarative disk layouts
 - [git-hooks.nix](https://github.com/cachix/git-hooks.nix) - Pre-commit hooks
 
