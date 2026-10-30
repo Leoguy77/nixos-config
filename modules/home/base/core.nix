@@ -41,6 +41,8 @@ in
       # Development
       lazygit
       delta
+      uv # provides uvx — Python tool runner for MCP servers (e.g. mcp-nixos)
+      python3 # base interpreter uv/uvx and pip tools use
       
       # Media
       mpv
@@ -127,6 +129,11 @@ in
 
     # SUDO_ASKPASS — GUI password dialog for pi agent's sudo calls
     home.sessionVariables.SUDO_ASKPASS = "${config.home.homeDirectory}/.config/askpass";
+
+    # uv/uvx must use the Nix system Python, not download a generic glibc build
+    # that NixOS can't run (see nix.dev stub-ld). Global so every uv-based MCP
+    # server (uvx mcp-nixos, etc.) works.
+    home.sessionVariables.UV_PYTHON_DOWNLOADS = "never";
 
     # Deploy askpass helper to a stable path (lives with the sudo-askpass pi
     # extension under pi-extensions/sudo-askpass/). Generated here so it embeds
