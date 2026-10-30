@@ -100,6 +100,18 @@ in
           "browser.theme.toolbar-theme" = lib.mkIf cfg.darkMode 0;
         };
       };
+      # Declarative extension install via the ExtensionSettings policy, straight
+      # from addons.mozilla.org. No NUR / firefox-addons input needed.
+      policies.ExtensionSettings = {
+        "uBlock0@raymondhill.net" = {
+          install_url = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi";
+          installation_mode = "force_installed";
+        };
+        "{d634138d-c276-4fc8-924b-40a0ea21d284}" = {
+          install_url = "https://addons.mozilla.org/firefox/downloads/latest/1password-password-manager/latest.xpi";
+          installation_mode = "force_installed";
+        };
+      };
     };
 
     # GUI applications
