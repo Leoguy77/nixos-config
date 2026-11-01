@@ -38,7 +38,31 @@ in
 
   config = lib.mkIf cfg.enable {
     # Pi agent packages from flake input if provided
-    home.packages = lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage;
+    home.packages =
+      (lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage)
+      # bili: manage/launch the billion-context proxy (dist is self-contained, needs node)
+      ++ [ (pkgs.writeShellScriptBin "bili" ''
+        exec ${pkgs.nodejs}/bin/node ${piBillionContext}/dist/index.js "$@"
+      '') ];
+
+    # billion-context: context-compression proxy. The pi extension (registered
+    # in settings.json `packages` below) is a thin client that connects to this
+    # proxy and detects it from the /bili/-prefixed model baseURLs in
+    # models.json. Without a running proxy it loads but compresses nothing —
+    # that's why simply registering the package looked "not installed".
+    systemd.user.services.billion-context = {
+      Unit = {
+        Description = "billion-context context-compression proxy";
+        After = [ "network-online.target" ];
+        Wants = [ "network-online.target" ];
+      };
+      Service = {
+        ExecStart = "${pkgs.nodejs}/bin/node ${piBillionContext}/dist/index.js --port 8787";
+        Restart = "on-failure";
+        RestartSec = 5;
+      };
+      Install.WantedBy = [ "default.target" ];
+    };
 
     # Register all pi packages declaratively in settings.json (pi's `packages`
     # mechanism). This is the correct way to install pi packages: pi reads each
@@ -56,6 +80,19 @@ in
     # (it would need a writable settings.json and npm); manage packages from this file.
     home.file.".pi/agent/settings.json".text = lib.mkIf cfg.extensions (builtins.toJSON {
       lastChangelogVersion = "1.4.0";
+      # Retry backoff: the providers (KISSKI/IONOS via bili) rate-limit with a
+      # 10s sliding window (2 req/10s) and put "Retry after N seconds" in the
+      # body. Pi 1.4.0's agent-level retry is pure exponential backoff and does
+      # NOT parse that hint (verified in the binary: retryDelayMs() ignores
+      # Retry-After; pi-ai's header-honoring path needs retry.provider.maxRetries
+      # > 0 but the SDK client is hard-coded to 0). The default 2s/4s/8s retries
+      # all land inside the window and fail. A 12s base makes the first retry
+      # land outside it: 12s, 24s, 48s, 60s (capped).
+      retry = {
+        enabled = true;
+        maxRetries = 4;
+        baseDelayMs = 12000;
+      };
       packages = [
         (toString piLens)
         (toString piHermesMemory)
@@ -89,7 +126,7 @@ in
       {
         "providers": {
           "kisski": {
-            "baseUrl": "https://chat-ai.academiccloud.de/v1",
+            "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
             "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
             "models": [
@@ -195,7 +232,7 @@ in
             ]
           },
           "ionos": {
-            "baseUrl": "https://openai.inference.de-txl.ionos.com/v1",
+            "baseUrl": "http://localhost:8787/bili/https://openai.inference.de-txl.ionos.com/v1",
             "api": "openai-completions",
             "apiKey": "!op read 'op://Personal/ionos basebox api cred/Anmeldedaten'",
             "models": [
