@@ -163,8 +163,10 @@ ssh -p 2222 root@mail-initrd      # -p 2222; the node name is the initrd's
 systemd-tty-ask-password-agent --watch
 ```
 
-The initrd host key is the one committed at `hosts/mail/initrd-ssh/`, so the
-fingerprint is stable across reboots — no `accept-new` needed.
+The initrd host key is generated at build time, so the fingerprint changes
+whenever the key derivation is rebuilt. Take the current one out of the boot of
+a running system (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` over the
+tailnet) or just accept the prompt the first time.
 
 Fallback if the tailnet join failed: netcup CCP → **Console (VNC)**.
 

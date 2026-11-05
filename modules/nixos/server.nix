@@ -49,11 +49,16 @@ in
     };
 
     initrdSshHostKey = lib.mkOption {
-      type = lib.types.path;
+      type = lib.types.nullOr lib.types.path;
+      default = null;
       description = ''
-        Private host key for the initrd SSH daemon. Initrd host keys cannot be
-        kept secret (they end up on the unencrypted /boot), so this is a
-        throwaway key that only protects the unlock session.
+        Private host key for the initrd SSH daemon. Leave null (the default) to
+        generate a throwaway key at build time.
+
+        A committed key buys nothing: initrd host keys are copied into the
+        world-readable nix store and onto the unencrypted /boot, so the private
+        half is public either way. It only puts a private key in the git history.
+        Set this only if you want a fingerprint that is stable across builds.
       '';
     };
 
@@ -162,7 +167,18 @@ in
     boot.initrd.network.ssh = lib.mkIf cfg.initrdSsh {
       enable = true;
       port = cfg.initrdSshPort;
-      hostKeys = [ cfg.initrdSshHostKey ];
+      # A throwaway key, generated at build time. See initrdSshHostKey above.
+      # The derivation output is the key file itself, not a directory: sshd's
+      # HostKey needs a file and the initrd copies it to /etc/ssh/<name>.
+      hostKeys = [
+        (if cfg.initrdSshHostKey != null then
+          cfg.initrdSshHostKey
+        else
+          pkgs.runCommand "initrd-ssh-host-key" { } ''
+            ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" \
+              -C "initrd@${config.networking.hostName}" -f $out
+          '')
+      ];
       extraConfig = "PermitRootLogin yes";
     };
 

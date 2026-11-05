@@ -77,7 +77,11 @@ in
     # Same key as the other hosts (1Password "Github" key).
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
   ];
-  modules.server.initrdSshHostKey = ./initrd-ssh/ssh_host_ed25519_key;
+
+  # The initrd host key is generated at build time (modules.server default). A
+  # committed one would be public either way — it lands in the world-readable
+  # nix store and on the unencrypted /boot — so it only ever put a private key
+  # in the git history without buying any secrecy.
 
   # Initrd SSH must never be reachable from the internet. That is handled by
   # modules.server, which enables modules.initrdTailscale on every server host:
