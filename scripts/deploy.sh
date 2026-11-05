@@ -1,168 +1,229 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# ──────────────────────────────────────────────────────────
-#  scripts/deploy.sh — deploy a new host via nixos-anywhere
-# ──────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+#  scripts/deploy.sh — install any host of this flake on a remote machine
+# ──────────────────────────────────────────────────────────────
 # Usage:
-#   scripts/deploy.sh <hostname> <user@host> [disk]
+#   scripts/deploy.sh <host> <target> [disk]
 #
-# Automates:
-#   - host directory & config creation
-#   - SSH host key generation (deploy identity)
-#   - reminders for sops secrets
-#   - nixos-anywhere deploy with LUKS + disko
-# ──────────────────────────────────────────────────────────
+#   host    nixosConfigurations attribute, i.e. the directory hosts/<host>/
+#   target  user@address to install through (key-based SSH; the user needs
+#           password-less sudo unless it is root)
+#   disk    whole block device on the target (default /dev/vda)
+#
+# Env:
+#   VM_TEST=1          run `nixos-anywhere --vm-test` only: partitions a
+#                      throwaway VM with the host's layout, touches nothing
+#   EXTRA_FILES=<dir>  pass --extra-files <dir> (files copied into the new root)
+#
+# Examples:
+#   scripts/deploy.sh mail root@91.132.147.216 /dev/vda
+#   VM_TEST=1 scripts/deploy.sh mail root@91.132.147.216 /dev/vda
+#
+# Assumptions, all enforced below rather than guessed:
+#   - hosts/<host>/default.nix exists and imports a disko layout
+#   - hosts/<host>/hardware-configuration.nix is committed and does NOT contain
+#     fileSystems (disko owns them; `--generate-hardware-config` would fight it)
+# ──────────────────────────────────────────────────────────────
+set -euo pipefail
 
 HOST="${1:-}"
 TARGET="${2:-}"
-DISK="${3:-/dev/sda}"
+DISK="${3:-/dev/vda}"
+
+FLAKE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ -z "$HOST" ] || [ -z "$TARGET" ]; then
-  echo "Usage: $0 <hostname> <user@host> [disk]"
-  echo "  e.g. $0 server root@192.168.3.50 /dev/nvme0n1"
+  echo "Usage: $0 <host> <user@address> [disk]" >&2
+  echo "  e.g. $0 mail root@91.132.147.216 /dev/vda" >&2
+  echo "" >&2
+  echo "  VM_TEST=1 $0 $HOST $TARGET $DISK   # dry run in a VM" >&2
   exit 1
 fi
 
-HOST_DIR="$(dirname "$0")/../hosts/$HOST"
-FLAKE_DIR="$(dirname "$0")/.."
+HOST_DIR="$FLAKE_DIR/hosts/$HOST"
 
-# ── Step 1: create host directory ──
-mkdir -p "$HOST_DIR"
+# `path:` instead of the default git+file: git flakes copy only tracked files,
+# so gitignored per-host secrets (e.g. the initrd tailscale bootstrap key) would
+# silently be missing from the build.
+FLAKE_REF="path:$FLAKE_DIR#$HOST"
+# Attribute path for introspection — FLAKE_REF above names the configuration,
+# which is what nixos-anywhere wants, but `nix eval` needs the full path.
+EVAL_REF="path:$FLAKE_DIR#nixosConfigurations.$HOST"
 
-if [ ! -f "$HOST_DIR/default.nix" ]; then
-  echo "📝 Writing hosts/$HOST/default.nix"
-  cat > "$HOST_DIR/default.nix" << HOSTNIX
-# Host-specific configuration
-{ config, pkgs, lib, inputs, mylib, myvars, pkgs-stable, ... }:
-
-{
-  imports = mylib.scanPaths ../../modules/nixos;
-
-  modules.boot.enable = true;
-  modules.boot.systemdBoot = true;
-  modules.boot.efi = true;
-
-  modules.system.enable = true;
-  modules.services.enable = true;
-  modules.services.ssh = true;
-
-  modules.users.enable = true;
-  modules.security.enable = true;
-
-  nixpkgs.overlays = import ../../overlays;
-
-  networking.hostName = "$HOST";
-
-  home-manager = {
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    extraSpecialArgs = { inherit mylib myvars pkgs-stable inputs pkgs; };
-    users.leoguy77 = { config, ... }: {
-      imports = [ ../../modules/home ./home.nix ];
-      modules.home.sops.enable = true;
-      home.stateVersion = myvars.system.stateVersion;
-    };
-  };
+nix_eval() {
+  nix eval --raw "$EVAL_REF.$1" 2>/dev/null
 }
-HOSTNIX
 
-  cat > "$HOST_DIR/home.nix" << 'HOMENIX'
-# Host-specific Home Manager overrides
-{ config, pkgs, lib, myvars, ... }:
-{
-  modules.home.core.enable = true;
-  modules.home.base.development.enable = true;
-  modules.home.tui.enable = true;
+# For booleans/ints: --raw cannot coerce those to a string.
+nix_eval_json() {
+  nix eval --json "$EVAL_REF.$1" 2>/dev/null
 }
-HOMENIX
+
+echo "═══════════════════════════════════════════════════════════"
+echo "  deploy: $HOST → $TARGET (disk $DISK)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+
+# ── Pre-flight ────────────────────────────────────────────────
+[ -f "$HOST_DIR/default.nix" ] || {
+  echo "❌ hosts/$HOST/default.nix does not exist. Create the host first." >&2
+  exit 1
+}
+
+HW="$HOST_DIR/hardware-configuration.nix"
+if [ ! -f "$HW" ]; then
+  echo "❌ hosts/$HOST/hardware-configuration.nix is missing." >&2
+  echo "   Commit one (without fileSystems — disko creates those)." >&2
+  exit 1
 fi
 
-# ── Step 2: generate host SSH key (for nixos-anywhere/deploy) ──
-echo ""
-echo "🔑 Generating host SSH key..."
-HOST_SSH_DIR="$HOST_DIR/ssh"
-mkdir -p "$HOST_SSH_DIR"
-
-if [ ! -f "$HOST_SSH_DIR/ssh_host_ed25519_key" ]; then
-  ssh-keygen -t ed25519 -f "$HOST_SSH_DIR/ssh_host_ed25519_key" -N "" -C "root@$HOST" >/dev/null 2>&1
+# Checked before the fileSystems guard below: a host that does not use disko has
+# every right to define fileSystems, and the useful message is this one.
+if ! DISKO_DEVICE="$(nix_eval config.disko.devices.disk.main.device)"; then
+  echo "❌ hosts/$HOST does not import a disko layout" >&2
+  echo "   (no config.disko.devices.disk.main). A host can only be installed by" >&2
+  echo "   this script if its disk layout lives in the flake. Add to its imports:" >&2
+  echo "     inputs.disko.nixosModules.disko" >&2
+  echo "     ../../modules/disko/luks-btrfs-server.nix" >&2
+  exit 1
 fi
 
-# Inject via extra-files
-EXTRA_FILES="$HOST_DIR/extra-files"
-mkdir -p "$EXTRA_FILES/etc/ssh"
-cp "$HOST_SSH_DIR/ssh_host_ed25519_key" "$EXTRA_FILES/etc/ssh/ssh_host_ed25519_key"
-cp "$HOST_SSH_DIR/ssh_host_ed25519_key.pub" "$EXTRA_FILES/etc/ssh/ssh_host_ed25519_key.pub"
-chmod 600 "$EXTRA_FILES/etc/ssh/ssh_host_ed25519_key"
+if grep -q '^[[:space:]]*fileSystems' "$HW"; then
+  echo "❌ $HW defines fileSystems; that clashes with the disko layout." >&2
+  echo "   Drop it — disko generates the mount points." >&2
+  exit 1
+fi
+echo "→ disko layout: $DISKO_DEVICE (overridden by --disk main $DISK)"
 
-# ── Step 3: remind about sops secrets ──
-echo ""
-echo "───────────────────────────────────────────────────────────"
-echo "  🔐  sops secrets ($FLAKE_DIR/secrets/secrets.sops.yaml)"
-echo "───────────────────────────────────────────────────────────"
-echo ""
-echo "  Add secrets to the shared sops file, then apply:"
-echo "    sops $FLAKE_DIR/secrets/secrets.sops.yaml    # edit & re-encrypt"
-echo "    sudo nixos-rebuild switch --flake '$FLAKE_DIR#$HOST'    # system secrets"
-echo "    home-manager switch --flake '$FLAKE_DIR#leoguy77@$HOST' # home secrets"
-echo ""
-echo "  Decryption identity: ~/.config/sops/age/keys.txt  (BACK IT UP)"
-echo ""
+HOSTNAME_CFG="$(nix_eval config.networking.hostName || echo "$HOST")"
+TS_ENABLED="$(nix_eval_json config.modules.initrdTailscale.enable || echo false)"
+echo "→ hostname: $HOSTNAME_CFG   tailnet-only initrd ssh: $TS_ENABLED"
 
-# ── Step 4: confirm deploy ──
+# ── Initrd tailscale bootstrap key (only needed for a first install) ──
+# Conventional location, gitignored, derived from sops when possible. After the
+# first boot the node identity persists on the ESP and no key is involved.
+AUTHKEY="$FLAKE_DIR/secrets/tailscale-initrd-$HOST.authkey"
+AUTHKEY_DERIVED=0
+if [ "$TS_ENABLED" = "true" ] && [ ! -s "$AUTHKEY" ] && command -v sops >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$AUTHKEY")"
+  if sops -d --extract '["tailscale_initrd_authkey"]' \
+       "$FLAKE_DIR/secrets/secrets.sops.yaml" > "$AUTHKEY" 2>/dev/null; then
+    chmod 600 "$AUTHKEY"
+    AUTHKEY_DERIVED=1
+  else
+    rm -f "$AUTHKEY"
+  fi
+fi
+
+HAS_AUTHKEY=0
+if [ "$TS_ENABLED" = "true" ]; then
+  if [ -s "$AUTHKEY" ]; then
+    HAS_AUTHKEY=1
+    echo "→ bootstrap auth key ready: first boot joins the tailnet by itself"
+  else
+    echo ""
+    echo "⚠  No bootstrap tailscale auth key, so the first boot will NOT join the"
+    echo "   tailnet and can only be unlocked on the provider console."
+    echo "   Add it once to sops and this script derives it on every install:"
+    echo "     sops $FLAKE_DIR/secrets/secrets.sops.yaml"
+    echo "     # add: tailscale_initrd_authkey = tskey-auth-…"
+    echo "   (pre-approved key, 7 days is plenty — only the first boot uses it)"
+    echo ""
+    read -rp "   Continue anyway (console-only first boot)? (y/N) " CONSOLE_ONLY
+    [ "$CONSOLE_ONLY" = "y" ] || [ "$CONSOLE_ONLY" = "Y" ] || exit 1
+  fi
+fi
+
+# ── Final confirmation ────────────────────────────────────────
 echo ""
-echo "🚀 Ready to deploy $HOST to $TARGET (disk: $DISK)"
-echo ""
-echo "   Target: NixOS installer ISO with SSH access"
+echo "⚠  This ERASES $DISK on $TARGET. Check first:"
+echo "   • UEFI boot enabled for this machine at the provider"
+echo "   • PTR/rDNS for the IPv4 *and* IPv6 address, if this host sends mail"
+echo "   • addresses/gateways in hosts/$HOST/default.nix match the machine"
+echo "     (a wrong gateway means an unreachable server)"
 echo ""
 read -rp "   Proceed? (y/N) " CONFIRM
-if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
-  echo "   ⏭️  Aborted."
+[ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ] || { echo "Aborted."; exit 0; }
+
+# ── LUKS passphrase ───────────────────────────────────────────
+echo ""
+LUKS_PASSFILE="$(mktemp)"
+cleanup() {
+  rm -f "$LUKS_PASSFILE"
+  # A derived key only had to exist for this build.
+  [ "${AUTHKEY_DERIVED:-0}" = "1" ] && rm -f "$AUTHKEY"
+}
+trap cleanup EXIT
+
+read -rsp "🔐 LUKS passphrase for the disk: " LUKS_PASS; echo ""
+read -rsp "🔐 Repeat: " LUKS_PASS2; echo ""
+[ "$LUKS_PASS" = "$LUKS_PASS2" ] || { echo "❌ Passphrases differ." >&2; exit 1; }
+printf '%s' "$LUKS_PASS" > "$LUKS_PASSFILE"
+unset LUKS_PASS LUKS_PASS2
+
+# ── Reachability ─────────────────────────────────────────────
+if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET" true 2>/dev/null; then
+  echo ""
+  echo "⚠  No key-based SSH access to $TARGET."
+  echo "   nixos-anywhere needs root, or a user with password-less sudo."
+  echo ""
+  read -rp "   Try the install anyway? (y/N) " GO
+  [ "$GO" = "y" ] || [ "$GO" = "Y" ] || exit 1
+fi
+
+# ── Dry run ──────────────────────────────────────────────────
+if [ -n "${VM_TEST:-}" ]; then
+  echo ""
+  echo "🧪 VM test — no real disk is touched"
+  nix run github:nix-community/nixos-anywhere -- \
+    --flake "$FLAKE_REF" \
+    --disk main "$DISK" \
+    --vm-test
+  echo ""
+  echo "✅ layout + config boot in a VM. Re-run without VM_TEST=1 to install."
   exit 0
 fi
 
-# ── Step 5: LUKS password ──
+# ── Install ──────────────────────────────────────────────────
 echo ""
-LUKS_PASSFILE=$(mktemp)
-trap 'rm -f "$LUKS_PASSFILE"' EXIT
-
-read -rsp "   🔐 Enter LUKS password: " LUKS_PASS
-echo ""
-read -rsp "   🔐 Confirm LUKS password: " LUKS_PASS2
-echo ""
-if [ "$LUKS_PASS" != "$LUKS_PASS2" ]; then
-  echo "   ❌ Passwords don't match."
-  exit 1
+echo "⚡ nixos-anywhere is partitioning $DISK and installing…"
+EXTRA_ARGS=()
+if [ -n "${EXTRA_FILES:-}" ]; then
+  EXTRA_ARGS+=(--extra-files "$EXTRA_FILES")
 fi
-echo -n "$LUKS_PASS" > "$LUKS_PASSFILE"
-unset LUKS_PASS LUKS_PASS2
 
-# ── Step 6: run nixos-anywhere ──
-echo ""
-echo "⚡ Deploying..."
-
-DISKO_CONFIG="$(dirname "$0")/../modules/disko/luks-btrfs.nix"
-nixos-anywhere \
-  --flake "$FLAKE_DIR#$HOST" \
-  --disko "$DISKO_CONFIG" \
+nix run github:nix-community/nixos-anywhere -- \
+  --flake "$FLAKE_REF" \
+  --target-host "$TARGET" \
   --disk main "$DISK" \
-  --extra-files "$EXTRA_FILES" \
   --disk-encryption-keys "$LUKS_PASSFILE" /tmp/luks-password \
-  --generate-hardware-config nixos-generate-config "$HOST_DIR/hardware-configuration.nix" \
-  "$TARGET"
+  "${EXTRA_ARGS[@]}"
 
+# ── What next ────────────────────────────────────────────────
 echo ""
-echo "   ✅ nixos-anywhere completed."
+echo "═══════════════════════════════════════════════════════════"
+echo "  ✅ installed — the machine is rebooting into the initrd"
+echo "═══════════════════════════════════════════════════════════"
 echo ""
-
-# ── Step 7: recap ──
-echo "═══════════════════════════════════════════════════════"
-echo "  ✅  DEPLOYED: $HOST → $TARGET"
-echo "═══════════════════════════════════════════════════════"
+if [ "$TS_ENABLED" = "true" ]; then
+  if [ "$HAS_AUTHKEY" = "1" ]; then
+    echo "  1. Unlock over the tailnet (nothing listens publicly):"
+    echo "       ssh -p 2222 root@$HOSTNAME_CFG-initrd"
+    echo "       # then, in that session:"
+    echo "       systemd-tty-ask-password-agent --watch"
+  else
+    echo "  1. Unlock on the provider console (no bootstrap key was available):"
+    echo "       # the passphrase prompt appears there; type it"
+  fi
+  echo ""
+  echo "  2. Disable key expiry for the $HOSTNAME_CFG-initrd node in the tailscale"
+  echo "     admin console, so the initrd never re-authenticates."
+else
+  echo "  1. Unlock the encrypted root:"
+  echo "       ssh -p 2222 root@${TARGET#*@}"
+  echo "       # then: systemd-tty-ask-password-agent --watch"
+fi
 echo ""
-echo "  📋 Commit:"
-echo "    git add hosts/$HOST secrets/ && git commit -m 'Add $HOST host'"
+echo "  3. Then, on the running system:"
+echo "       nixos-rebuild switch --flake .#$HOST --target-host $TARGET --use-remote-sudo"
 echo ""
-echo "  🏠 ssh leoguy77@<ip>"
-echo ""
-echo "═══════════════════════════════════════════════════════"
