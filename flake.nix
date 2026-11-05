@@ -123,7 +123,8 @@
         value = mkHost name;
       }) hosts);
 
-      # Home Manager standalone configurations
+      # Home Manager standalone configurations — only for hosts that actually
+      # carry a home.nix (servers usually do not).
       homeConfigurations =
         let
           mkHome = hostname: home-manager.lib.homeManagerConfiguration {
@@ -134,11 +135,12 @@
             ];
             extraSpecialArgs = specialArgs;
           };
+          homeHosts = builtins.filter (name: builtins.pathExists ./hosts/${name}/home.nix) hosts;
         in
         builtins.listToAttrs (map (name: {
           name = "leoguy77@${name}";
           value = mkHome name;
-        }) hosts);
+        }) homeHosts);
 
       # Development shell with essential tools
       devShells.${system}.default = pkgs.mkShell {
