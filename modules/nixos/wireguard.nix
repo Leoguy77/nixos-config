@@ -48,6 +48,15 @@ in
       description = "flipdot DNS resolver on wg0 (null disables).";
     };
 
+    # Resolved routing domain pinning .fd names to flipdot's resolver. Without
+    # it, resolved treats flipdot DNS as a general default and races it against
+    # Tailscale MagicDNS (.ts.net).
+    dnsSearch = lib.mkOption {
+      type = lib.types.str;
+      default = "~fd";
+      description = "NetworkManager ipv4.dns-search routing domain, e.g. ~fd.";
+    };
+
     # Negative dns-priority => flipdot DNS is preferred over other connections'
     # resolvers (merged, NOT exclusive). Keeps .fd hostnames (mqtt.fd) resolving
     # while the rest of the resolver list stays available.
@@ -86,6 +95,13 @@ in
         NMCLI=${pkgs.networkmanager}/bin/nmcli
         TR=${pkgs.coreutils}/bin/tr
 
+        # networkmanager.service can still be coming up (e.g. its own restart
+        # during `nixos-rebuild switch`), so wait instead of failing the unit.
+        for _ in $(seq 1 30); do
+          "$NMCLI" general >/dev/null 2>&1 && break
+          sleep 1
+        done
+
         KEY="$("$TR" -d ' \n' < ${lib.escapeShellArg secretPath})"
         if [ -z "$KEY" ]; then
           echo "flipdot-wg0: WireGuard private key empty/missing at ${lib.escapeShellArg secretPath} — skipping wg0 setup" >&2
@@ -103,6 +119,7 @@ in
           ipv4.method manual \
           ipv4.addresses ${lib.escapeShellArg cfg.address} \
           ${lib.optionalString (cfg.dns != null) "ipv4.dns ${lib.escapeShellArg cfg.dns}"} \
+          ipv4.dns-search ${lib.escapeShellArg cfg.dnsSearch} \
           ipv4.dns-priority ${cfg.dnsPriority} \
           ipv6.method ignore \
           >/dev/null

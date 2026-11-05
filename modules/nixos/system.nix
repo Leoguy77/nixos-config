@@ -55,11 +55,17 @@ in
     networking = {
       hostName = lib.mkDefault cfg.hostName;
       networkmanager.enable = lib.mkDefault true;
+      # systemd-resolved routes per link (split DNS), so Tailscale MagicDNS
+      # (.ts.net) and flipdot's resolver (.fd, 192.168.3.254) coexist instead of
+      # one overwriting /etc/resolv.conf and dropping the other.
+      networkmanager.dns = "systemd-resolved";
       firewall = {
         enable = lib.mkDefault true;
         allowedTCPPorts = lib.mkDefault [ 22 ]; # SSH
       };
     };
+
+    services.resolved.enable = true;
 
     # Time & Locale
     time.timeZone = cfg.timeZone;
