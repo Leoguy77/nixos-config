@@ -32,6 +32,15 @@
         ipv6 = ""; # Update with actual IPv6
         iface = "wlan0"; # Update with actual interface
       };
+
+      # netcup VPS (pico G11s) — public mail server
+      mail = {
+        ipv4 = "91.132.147.216"; # /22
+        ipv4Gateway = "91.132.144.1";
+        ipv6 = "2a03:4000:37:c32:6860:64ff:fe3b:ddb0"; # /64
+        ipv6Gateway = "fe80::1";
+        iface = "eth0"; # also enp0s3 / ens3
+      };
     };
 
     # Smart home configuration
