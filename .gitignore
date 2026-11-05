@@ -2,6 +2,13 @@
 flake.lock
 /result
 
+# Local secrets: never commit (the repo is public). Bootstrap keys for the
+# servers' initrd tailscale land here, derived from sops by the deploy script.
+# The sops files themselves stay tracked.
+/secrets/*
+!/secrets/*.sops.yaml
+hosts/*/secrets/
+
 # Editor
 *~
 *.swp
