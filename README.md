@@ -26,7 +26,9 @@ sudo nixos-rebuild switch --flake .#surface
 nixos-config/
 ├── flake.nix              # Entry point
 ├── hosts/                 # Host-specific configs
-│   └── surface/           # My Surface device
+│   ├── kirito/            # Desktop
+│   ├── surface/           # Surface laptop
+│   └── mail/              # netcup VPS: Stalwart + Bulwark (see hosts/mail/README.md)
 ├── modules/               # Reusable modules
 │   ├── nixos/             # System modules
 │   └── home/              # User modules
@@ -50,6 +52,13 @@ nixos-config/
 - **Browser**: Firefox with dark mode
 - **Dev Tools**: tmux, mise, lazygit, delta
 - **Pi Agent**: LLM agents integration
+
+## 🖥️ Server hosts
+
+`hosts/mail` is a headless mail server (encrypted root, unlocked over SSH in
+the initrd). Its deployment and post-install runbook lives in
+[hosts/mail/README.md](./hosts/mail/README.md); install with
+`scripts/deploy.sh <host> <user@address> [disk]`.
 
 ## 🔧 Customization
 
