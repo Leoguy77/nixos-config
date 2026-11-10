@@ -128,12 +128,39 @@ in
           "kisski": {
             "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
+            "apiKey": "!op read 'op://gnh/GWDG chat-ai/Anmeldedaten'",
             "models": [
               {
                 "id": "deepseek-v4-flash-0731",
                 "name": "DeepSeek V4 Flash (KISSKI)",
                 "reasoning": true,
+                "thinkingLevelMap": {
+                  "off": "none",
+                  "minimal": null,
+                  "low": "low",
+                  "medium": null,
+                  "high": "high",
+                  "xhigh": null,
+                  "max": "max"
+                },
+                "input": ["text"],
+                "contextWindow": 1000000,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              },
+              {
+                "id": "deepseek-v4.1-flash-1017",
+                "name": "DeepSeek V4.1 Flash (KISSKI)",
+                "reasoning": true,
+                "thinkingLevelMap": {
+                  "off": "none",
+                  "minimal": null,
+                  "low": "low",
+                  "medium": "medium",
+                  "high": "high",
+                  "xhigh": null,
+                  "max": "max"
+                },
                 "input": ["text"],
                 "contextWindow": 1000000,
                 "maxTokens": 16384,
