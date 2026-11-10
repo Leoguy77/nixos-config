@@ -96,6 +96,9 @@ in
         path = "o7xcohfs.default";
         settings = {
           "font.name.monospace.x-western" = "Fira Code";
+          # WebSerial (Web Serial API). Enabled by default since FF 151, but
+          # pin it on in case a future stabled pref-gate regresses it.
+          "dom.webserial.enabled" = true;
           "browser.theme.content-theme" = lib.mkIf cfg.darkMode 0;
           "browser.theme.toolbar-theme" = lib.mkIf cfg.darkMode 0;
         };

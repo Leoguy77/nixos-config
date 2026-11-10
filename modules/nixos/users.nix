@@ -32,6 +32,7 @@ in
         "networkmanager" 
         "wheel" 
         "input"
+        "dialout"  # serial ports (/dev/ttyUSB*, /dev/ttyACM*) for WebSerial/flashing
         cfg.mainUser
       ];
       shell = cfg.userShell;
