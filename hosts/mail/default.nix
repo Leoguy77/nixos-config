@@ -163,6 +163,12 @@ in
     allowReboot = false;
   };
 
+  # The flake tarball is cached per machine and only revalidated hourly. That is
+  # fine for a pull, but this box upgrades unattended: a stale tarball means it
+  # rebuilds the commit it already has and reports success. Flakes are cheap to
+  # re-fetch and the lock pins every input, so the cache buys nothing here.
+  nix.settings.tarball-ttl = 0;
+
   # Backups: deliberately off until an *off-site* target exists. The default
   # repository is a local path, which on a 30 GB disk would just double the
   # mail store on the same (encrypted) device. Once you have a target:
