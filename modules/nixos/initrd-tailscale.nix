@@ -194,9 +194,12 @@ in
         # Degraded fallback: if the ESP mount failed, tailscaled still starts with
         # an ephemeral state dir on tmpfs instead of taking the whole unlock path
         # down with it. Costs the persisted node identity (needs a fresh auth key
-        # next boot), which beats "cannot unlock at all". `mkdir` resolves via the
-        # initrd manager PATH (/bin:/sbin), where coreutils already lives.
-        ExecStartPre = "mkdir -p ${cfg.stateMountPoint}";
+        # next boot), which beats "cannot unlock at all".
+        #
+        # Absolute store path on purpose: the initrd has no /bin, so a bare
+        # `mkdir` fails 203/EXEC and takes tailscaled down with it — which breaks
+        # the join silently while the rest of the boot looks healthy.
+        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p ${cfg.stateMountPoint}";
         Restart = "on-failure";
         RestartSec = 3;
       };
