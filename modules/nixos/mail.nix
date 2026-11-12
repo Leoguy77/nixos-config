@@ -371,6 +371,19 @@ in
       // autoconfigVhosts;
     };
 
+    # Port 465 (enableSubmissionSsl) is the only submission service enabled here,
+    # and nixos-mailserver gives it a recipient restriction list that resolves the
+    # recipient domain BEFORE `permit_sasl_authenticated`:
+    #   reject_non_fqdn_recipient,reject_unknown_recipient_domain,permit_sasl_authenticated,reject
+    # (`mail-server/postfix.nix:192`, assigned at `:489-490`). Any DNSSEC-bogus
+    # recipient domain then SERVFAILs into `450 ... Domain not found` — even for an
+    # authenticated user, who cannot be unauthenticated by that point anyway
+    # (`smtpd_client_restrictions` already rejects those). Worse, RFC 7672 §2.2
+    # requires a bogus MX/address lookup to DEFER the message, not reject it at
+    # RCPT; deferring is also what makes `smtp_tls_security_level = dane`
+    # meaningful, since the smtp client retries once the domain resolves.
+    services.postfix.submissionsOptions.smtpd_recipient_restrictions = lib.mkForce "permit_sasl_authenticated,reject";
+
     # ── Roundcube ──────────────────────────────────────────────────────────
     services.roundcube = {
       enable = true;
