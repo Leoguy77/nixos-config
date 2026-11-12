@@ -170,6 +170,21 @@ in
       description = "Contact address for Let's Encrypt.";
     };
 
+    dnssecValidation = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Make the local resolver validate DNSSEC and report validity to Postfix.
+
+        Required for DANE (RFC 7672) to do anything. Postfix's
+        `smtp_dns_support_level = dnssec` does not validate signatures itself;
+        it asks the resolver and only uses the answer if the resolver says the
+        data was validated (the AD bit). A resolver that does not validate
+        never sets that bit, so Postfix silently falls back to opportunistic
+        `tls=may` and a bogus TLSA record is ignored rather than enforced.
+      '';
+    };
+
     accounts = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
@@ -383,6 +398,13 @@ in
     # RCPT; deferring is also what makes `smtp_tls_security_level = dane`
     # meaningful, since the smtp client retries once the domain resolves.
     services.postfix.submissionsOptions.smtpd_recipient_restrictions = lib.mkForce "permit_sasl_authenticated,reject";
+
+    # DANE needs the resolver to validate, not just resolve. See the
+    # dnssecValidation option for why: Postfix trusts only the AD bit.
+    # plainTextDNSSEC rather than a stub-only mode keeps ordinary lookups
+    # working if a domain is unsigned — only *bogus* answers fail, which is
+    # exactly the distinction RFC 7672 needs.
+    services.resolved.settings.Resolve.DNSSEC = lib.mkIf cfg.dnssecValidation "true";
 
     # ── Roundcube ──────────────────────────────────────────────────────────
     services.roundcube = {
