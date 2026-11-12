@@ -1,10 +1,39 @@
 keys:
+  # Host recipient. sops-nix converts the machine's ssh host key into this age
+  # identity at boot, so it must stay in age1 form — an ssh-ed25519 recipient is
+  # a different scheme and does not decrypt against the converted key.
   - &kirito age1pr3nmcpwycezz3zc5w2ejgt7m2m46k38kufals8set4948hgss8q55vs9x
+  # mail.lsinfra.de. Overwritten by `scripts/deploy.sh` on every install: it mints
+  # a fresh host key, derives the matching `age1…` and rewrites this line, so the
+  # value here is only what the last deploy enrolled. The ciphertext in
+  # secrets.sops.yaml stays readable by your PGP key regardless.
+  - &mail age14x2y8p0zwcxyyukz3janel8s9mjpa97ufnc6w64z88aw5z77zpdsvlt5j3
+  # User recipient: ~/.ssh/GPG, converted to PGP by sops-nix (home-manager).
   - &leoguy77 5C0B8600A5177230B45A66EBF7169CB8EBBAF028
+
+# The identity set most secrets are readable by. The anchor sits on a real rule
+# on purpose: a creation_rules entry without `path_regex` matches *every* file,
+# so it cannot be used as a bare container for the shared group.
 creation_rules:
-  - path_regex: secrets/[^/]+\.sops\.ya?ml$
+  - &common
+    path_regex: secrets/[^/]+\.sops\.ya?ml$
     key_groups:
+      # mail is in the shared group because it is the host that *reads*
+      # secrets/secrets.sops.yaml (dns-sync, dkim). Adding its key here is what
+      # makes the whole file decryptable on that box.
       - age:
           - *kirito
+          - *mail
         pgp:
           - *leoguy77
+
+  # A host with its own secrets: same user, plus that host's own key, so the file
+  # stays readable by you but not by unrelated machines.
+  #
+  # - path_regex: hosts/mail/secrets/[^/]+\.sops\.ya?ml$
+  #   <<: *common
+  #   key_groups:
+  #     - age:
+  #         - *mail
+  #       pgp:
+  #         - *leoguy77

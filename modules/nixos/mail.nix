@@ -1,62 +1,62 @@
-# Stalwart mail server + Bulwark webmail, and the TLS front for both.
+# Mail stack: nixos-mailserver (Postfix + Dovecot + rspamd + opendkim) plus
+# Roundcube webmail.
 #
-# Why containers: nixpkgs only ships `stalwart-mail` 0.15.x, and Bulwark needs
-# Stalwart >= 0.16.6 (1.0 needs Bulwark >= 1.18). Pinning the upstream images on
-# a release line keeps server and webmail compatible.
+# Everything is Nix-declared: accounts, aliases, quotas, DKIM keys, TLS. No
+# setup wizard, no configuration that lives in a database Nix cannot read.
+# That is the whole reason this module exists — the previous Stalwart setup
+# kept its real configuration in RocksDB, writable only through a web UI on
+# first boot, so the flake never described the running server.
 #
-# TLS layout (single public IPv4, two names):
+# TLS layout (one public IPv4, two names):
 #
-#   :443 ──> nginx _stream_, SNI passthrough
-#              webmail.<domain> ──> 127.0.0.1:8445  (nginx http, LE cert)
-#              *                ──> 127.0.0.1:8443  (Stalwart's own TLS)
-#   :80  ──> nginx http: ACME (webmail) + redirect
-#   :25 :465 :587 :143 :993 :4190 ──> Stalwart directly
+#   webmail.<domain> ──> nginx :80 (ACME webroot) and :443 (Roundcube)
+#   mail.<domain>    ──> Postfix :25/:465/:587, Dovecot :143/:993, Sieve :4190
 #
-# Stalwart keeps a single hostname (mail.<domain>) and gets its own certificate
-# with ACME/TLS-ALPN-01. The validation connects to port 443, the stream proxy
-# passes the handshake through untouched, so mail.<domain> keeps one cert that
-# Stalwart also uses for SMTP/IMAP. nginx never terminates TLS for that name,
-# which is what keeps the two ACME clients from fighting over HTTP-01.
-{ config, pkgs, lib, ... }:
+# A single certificate is issued for mail.<domain> over HTTP-01 and shared:
+# nginx serves the challenge on :80 for that name, Postfix and Dovecot read the
+# same files from /var/lib/acme. No TLS passthrough and no ALPN: the NixOS ACME
+# module cannot do standalone/ALPN at all (its only non-DNS modes are
+# `webroot`, `listenHTTP` and `s3Bucket`), and it does not need to.
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.mail;
 
-  stalwartDataDir = "${cfg.stateDir}/stalwart";
-  bulwarkDataDir = "${cfg.stateDir}/bulwark";
+  # DKIM keys are private key material, so they live outside the Nix store
+  # (which is world-readable). rspamd reads them at runtime.
+  dkimDir = "/var/lib/dkim";
 
-  # Ports Stalwart serves on the host. Loopback-only ports are the ones nginx
-  # fronts; the rest are published directly so provider-side rDNS and client
-  # autoconfiguration work without extra hops.
-  stalwartPorts = [
-    "25:25" # SMTP
-    "465:465" # SMTPS (implicit TLS)
-    "587:587" # submission (STARTTLS)
-    "143:143" # IMAP (STARTTLS)
-    "993:993" # IMAPS
-    "4190:4190" # ManageSieve
-    "127.0.0.1:8443:443" # HTTPS: JMAP, web admin, ACME TLS-ALPN-01
-    "127.0.0.1:8081:8080" # plain HTTP: setup wizard (only while unconfigured)
-  ];
+  firstAccount = "${builtins.head (builtins.attrNames cfg.accounts)}@${cfg.domain}";
 in
 
 {
   options.modules.mail = {
-    enable = lib.mkEnableOption "Stalwart mail server and Bulwark webmail";
+    enable = lib.mkEnableOption "the mail server (Postfix, Dovecot, rspamd, Roundcube)";
 
     hostname = lib.mkOption {
       type = lib.types.str;
-      description = "Mail hostname (MX, JMAP, web admin, TLS certificate).";
+      description = "Mail hostname (MX, SMTP, IMAP, TLS certificate).";
       example = "mail.example.com";
     };
 
     webmailHostname = lib.mkOption {
       type = lib.types.str;
       description = ''
-        Hostname for the Bulwark webmail UI. Must differ from {option}`hostname`
-        so that only one ACME client is responsible for each name.
+        Hostname for the Roundcube webmail UI. Must differ from {option}`hostname`
+        so that only one nginx vhost owns port 443 for a given name.
       '';
       example = "webmail.example.com";
+    };
+
+    domain = lib.mkOption {
+      type = lib.types.str;
+      description = "The mail domain being served (the part after the @).";
+      example = "example.com";
     };
 
     acmeEmail = lib.mkOption {
@@ -64,35 +64,50 @@ in
       description = "Contact address for Let's Encrypt.";
     };
 
-    stateDir = lib.mkOption {
-      type = lib.types.str;
-      default = "/var/lib";
-      description = "Parent directory for the container data.";
-    };
+    accounts = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            hashedPasswordFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              description = ''
+                File containing the account's password hash, as produced by
+                `mkpasswd -m sha-512`. Use a sops secret: a hash is still a
+                credential, just not a plaintext one.
+              '';
+            };
 
-    stalwartImage = lib.mkOption {
-      type = lib.types.str;
-      # Never `latest`: Stalwart 1.0 cannot open a 0.16 data store.
-      default = "docker.io/stalwartlabs/stalwart:v1.0";
-      description = "Stalwart container image (pin the release line).";
-    };
+            passwordFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              description = ''
+                File containing the plaintext password. Prefer
+                {option}`hashedPasswordFile`; this exists for secrets managers
+                that hand out cleartext.
+              '';
+            };
 
-    bulwarkImage = lib.mkOption {
-      type = lib.types.str;
-      default = "ghcr.io/bulwarkmail/webmail:1";
-      description = "Bulwark container image (pin the release line).";
-    };
+            aliases = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = "Extra addresses delivered to this account.";
+            };
 
-    stalwartMemoryLimit = lib.mkOption {
-      type = lib.types.str;
-      default = "640m";
-      description = "Memory limit for the Stalwart container.";
-    };
-
-    bulwarkMemoryLimit = lib.mkOption {
-      type = lib.types.str;
-      default = "256m";
-      description = "Memory limit for the Bulwark container.";
+            quota = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "4G";
+              description = "Per-account mailbox quota. Null means the default.";
+            };
+          };
+        }
+      );
+      default = { };
+      description = ''
+        Login accounts, keyed by the local part (`leon` becomes
+        `leon@<domain>`).
+      '';
     };
   };
 
@@ -102,157 +117,179 @@ in
         assertion = cfg.hostname != cfg.webmailHostname;
         message = "modules.mail.hostname and modules.mail.webmailHostname must differ.";
       }
+      {
+        assertion = cfg.accounts != { };
+        message = ''
+          modules.mail.accounts is empty: the server would accept mail for
+          nobody and Dovecot would have no logins.
+        '';
+      }
     ];
 
-    # ── Containers ─────────────────────────────────────────────────────────
-    virtualisation.oci-containers.backend = "podman";
-    virtualisation.podman = {
+    # ── The mail stack ─────────────────────────────────────────────────────
+    mailserver = {
       enable = true;
-      dockerCompat = false;
-    };
+      fqdn = cfg.hostname;
+      domains = [ cfg.domain ];
 
-    virtualisation.oci-containers.containers.stalwart = {
-      image = cfg.stalwartImage;
-      ports = stalwartPorts;
-      volumes = [
-        "${stalwartDataDir}/etc:/etc/stalwart"
-        "${stalwartDataDir}/data:/var/lib/stalwart"
-      ];
-      environment = {
-        STALWART_HOSTNAME = cfg.hostname;
-        # JMAP URLs published to clients live behind the stream proxy.
-        STALWART_PUBLIC_URL = "https://${cfg.hostname}";
+      # Tracks mailserver *data-layout* migrations, not system.stateVersion.
+      # 5 is the current level (required by enableManageSieve). A fresh install
+      # starts here; an existing server would have to migrate up instead.
+      stateVersion = 5;
+
+      # 50 MiB, also used for Roundcube's upload ceiling.
+      messageSizeLimit = 52428800;
+
+      accounts = lib.mapAttrs' (
+        name: account:
+        lib.nameValuePair "${name}@${cfg.domain}" (
+          {
+            inherit (account) aliases;
+          }
+          // lib.optionalAttrs (account.quota != null) { inherit (account) quota; }
+          // lib.optionalAttrs (account.hashedPasswordFile != null) {
+            inherit (account) hashedPasswordFile;
+          }
+          // lib.optionalAttrs (account.passwordFile != null) {
+            inherit (account) passwordFile;
+          }
+        )
+      ) cfg.accounts;
+
+      # RFC 2142 requires both to resolve; remote MTAs and DNSBLs check.
+      aliases = {
+        "postmaster@${cfg.domain}" = firstAccount;
+        "abuse@${cfg.domain}" = firstAccount;
       };
-      extraOptions = [
-        "--memory=${cfg.stalwartMemoryLimit}"
-        "--memory-swap=${cfg.stalwartMemoryLimit}"
-      ];
-    };
 
-    virtualisation.oci-containers.containers.bulwark = {
-      image = cfg.bulwarkImage;
-      ports = [ "127.0.0.1:3000:3000" ];
-      volumes = [ "${bulwarkDataDir}:/app/data" ];
-      environment = {
-        HOSTNAME = "0.0.0.0";
-        PORT = "3000";
-        # The browser talks JMAP to Stalwart directly, not through Bulwark.
-        JMAP_SERVER_URL = "https://${cfg.hostname}";
+      # ── Protocols ────────────────────────────────────────────────────────
+      enableImapSsl = true; # 993, implicit TLS — what clients actually use
+      enableImap = false; # 143/STARTTLS is deprecated (RFC 8314 §4.1)
+      enableSubmissionSsl = true; # 465, implicit TLS submission
+      enableManageSieve = true; # 4190, server-side filters from the webmail
+
+      # ── TLS ──────────────────────────────────────────────────────────────
+      # The cert is defined once below by nginx (`enableACME`); Postfix and
+      # Dovecot read the same files out of /var/lib/acme.
+      x509.useACMEHost = cfg.hostname;
+
+      # ── Filtering ────────────────────────────────────────────────────────
+      # Off on a 1 GB box: ClamAV's signature DB alone wants ~1 GB of RSS.
+      # rspamd, included above, does the spam scoring.
+      virusScanning = false;
+
+      # rspamd queries DNSBLs constantly; a local resolver keeps the journal
+      # readable instead of filling it with timeouts.
+      localDnsResolver = true;
+
+      dkim = {
+        enable = true;
+        keyDirectory = dkimDir;
+
+        # The keypair is generated once, outside the repo, and the private half
+        # lives in sops: its public half is a DNS record the zone declares, so
+        # generating it on the host would leave the record unsettable until
+        # after first boot. keyFile excludes keyType/keyLength by assertion.
+        domains.${cfg.domain}.selectors.mail.keyFile = config.sops.secrets.dkim_mail_private_key.path;
       };
-      extraOptions = [
-        "--memory=${cfg.bulwarkMemoryLimit}"
-        "--memory-swap=${cfg.bulwarkMemoryLimit}"
-      ];
+
+      # Dovecot's full-text index is the other RAM hog on this box.
+      fullTextSearch.enable = false;
     };
 
-    systemd.tmpfiles.rules = [
-      "d ${stalwartDataDir} 0700 root root -"
-      "d ${stalwartDataDir}/etc 0700 root root -"
-      "d ${stalwartDataDir}/data 0700 root root -"
-      # Bulwark's image runs as an unprivileged node user; it needs to write
-      # the admin config and sessions here.
-      "d ${bulwarkDataDir} 0750 1000 1000 -"
-    ];
-
-    # ── Firewall ───────────────────────────────────────────────────────────
-    networking.firewall.allowedTCPPorts = [
-      25
-      465
-      587
-      143
-      993
-      4190
-    ];
-
-    # ── ACME for the webmail hostname ──────────────────────────────────────
-    #
-    # webroot (HTTP-01 through nginx on :80) keeps port 443 free for the SNI
-    # passthrough, and leaves Stalwart's own ACME client alone.
+    # ── TLS: one cert for mail.<domain>, shared ────────────────────────────
     security.acme = {
       acceptTerms = true;
       defaults.email = cfg.acmeEmail;
-      certs."${cfg.webmailHostname}" = {
-        domain = cfg.webmailHostname;
-        group = "nginx";
-        webroot = "/var/lib/acme/acme-challenge";
-        reloadServices = [ "nginx" ];
-      };
     };
 
-    # ── nginx: SNI passthrough + webmail vhost ─────────────────────────────
+    # No explicit `security.acme.certs."${cfg.hostname}"` here: the nginx vhost
+    # below with `enableACME` creates it with the right group and webroot, and
+    # nixos-mailserver appends its own reloadServices (postfix, dovecot) to the
+    # same cert. A hand-written cert block would only duplicate both — and a
+    # reloadServices entry naming a unit that does not exist (`dovecot2.service`;
+    # the unit is `dovecot.service`) would warn on every renewal.
+
+    # ── nginx: ACME webroot + Roundcube ────────────────────────────────────
     services.nginx = {
       enable = true;
       recommendedOptimisation = true;
       recommendedTlsSettings = true;
-      recommendedProxySettings = true;
       serverTokens = false;
-      # Webmail uploads are bounded by Stalwart's own message size limit.
+      # Uploads are bounded by Postfix's message_size_limit instead.
       clientMaxBodySize = "0";
 
-      streamConfig = ''
-        map $ssl_preread_server_name $mail_tls_backend {
-          ${cfg.webmailHostname}  127.0.0.1:8445;
-          default                 127.0.0.1:8443;
-        }
-
-        server {
-          listen      443;
-          listen      [::]:443;
-          ssl_preread on;
-          proxy_pass  $mail_tls_backend;
-          # IMAP/JMAP sessions are long lived; a client must not be cut off
-          # mid-session by the proxy.
-          proxy_timeout 1h;
-          proxy_connect_timeout 10s;
-        }
-      '';
-
       virtualHosts = {
-        # Plain HTTP: ACME challenge for the webmail name, everything else is
-        # redirected to the mail host.
-        "${cfg.webmailHostname}" = {
-          listen = [
-            {
-              addr = "0.0.0.0";
-              port = 80;
-            }
-            {
-              addr = "[::]";
-              port = 80;
-            }
-          ];
-          locations."/.well-known/acme-challenge/".root = "/var/lib/acme/acme-challenge";
-          locations."/".return = "301 https://${cfg.hostname}$request_uri";
+        # :80 for the mail name — exists only to answer HTTP-01. Everything
+        # else is redirected, so the vhost is a challenge endpoint, not a site.
+        "${cfg.hostname}" = {
+          enableACME = true;
+          forceSSL = true;
+          locations."/".return = "301 https://${cfg.webmailHostname}$request_uri";
         };
 
-        # HTTPS for the webmail name, reached through the SNI map above.
-        "${cfg.webmailHostname}-tls" = {
-          serverName = cfg.webmailHostname;
-          listen = [
-            {
-              addr = "127.0.0.1";
-              port = 8445;
-              ssl = true;
-            }
-          ];
-          # `listen` is set explicitly below, so the module needs to be told
-          # that this vhost terminates TLS (it otherwise emits no ssl_* lines).
-          addSSL = true;
-          # Ordering against acme-<name>.service so nginx never starts
-          # without the certificate it is about to load.
-          useACMEHost = cfg.webmailHostname;
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:3000";
-            proxyWebsockets = true;
-            extraConfig = ''
-              add_header Strict-Transport-Security "max-age=31536000" always;
-              add_header X-Content-Type-Options "nosniff" always;
-              add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-              add_header X-Frame-Options "SAMEORIGIN" always;
-            '';
-          };
+        # The webmail UI itself, on its own name and its own cert.
+        "${cfg.webmailHostname}" = {
+          enableACME = true;
+          forceSSL = true;
+          # Roundcube's module owns the php-fpm pool and the webroot; the vhost
+          # is left to it (see services.roundcube below).
         };
       };
     };
+
+    # ── Roundcube ──────────────────────────────────────────────────────────
+    services.roundcube = {
+      enable = true;
+      hostName = cfg.webmailHostname;
+      # The module then writes the vhost itself, with enableACME + forceSSL.
+      configureNginx = true;
+      maxAttachmentSize = config.mailserver.messageSizeLimit / 1024 / 1024;
+      dicts = with pkgs.aspellDicts; [
+        en
+        de
+      ];
+      extraConfig = ''
+        $config['imap_host'] = 'ssl://${cfg.hostname}:993';
+        $config['smtp_host'] = 'ssl://${cfg.hostname}:465';
+        $config['smtp_user'] = '%u';
+        $config['smtp_pass'] = '%p';
+        // The UI is served from webmail.<domain> but logs in against mail.<domain>.
+        $config['username_domain'] = '${cfg.domain}';
+        $config['mail_domain'] = '${cfg.domain}';
+        // ManageSieve: lets the webmail edit server-side filters.
+        $config['managesieve_host'] = 'tls://${cfg.hostname}:4190';
+        $config['managesieve_usetls'] = true;
+      '';
+    };
+
+    # ── Firewall ───────────────────────────────────────────────────────────
+    # mailserver.openFirewall (default true) opens 25/465/993/4190. No 143 or
+    # 587: those are the STARTTLS variants of protocols enabled below in their
+    # implicit-TLS form, so they are never opened.
+    networking.firewall.allowedTCPPorts = [
+      80
+      443
+    ];
+
+    # ── DKIM key ───────────────────────────────────────────────────────────
+    # rspamd reads this directly (the path is what mailserver.dkim...keyFile
+    # above points at), so the file must belong to rspamd, not root: sops-nix
+    # defaults to 0400 root:root and the signer would get EACCES on every send.
+    sops.secrets.dkim_mail_private_key = {
+      owner = config.services.rspamd.user;
+      group = config.services.rspamd.group;
+      mode = "0400";
+    };
+
+    # Dovecot's userdb is generated by its ExecStartPre, which runs as root and is
+    # what reads this file, so default root ownership is correct here.
+    sops.secrets.leon_password_hash = { };
+
+    # ── Disk ───────────────────────────────────────────────────────────────
+    # Nothing to declare: nixos-mailserver creates dkim.keyDirectory (as a
+    # tmpfiles rule owned by the rspamd user, which is what actually signs) and
+    # StorageDirectory for /var/vmail. An extra rule naming an `opendkim` user
+    # would fail at boot — there is no such user, DKIM here is rspamd's.
   };
 }
