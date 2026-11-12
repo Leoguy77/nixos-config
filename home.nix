@@ -5,7 +5,9 @@
 #   home-manager switch --flake .#leoguy77@surface
 #
 # This file is kept for compatibility with non-flake workflows
-{ config, pkgs, lib, ... }:
+{
+  ...
+}:
 
 {
   imports = [

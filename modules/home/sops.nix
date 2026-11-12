@@ -1,7 +1,12 @@
 # Home-manager sops (sops-nix) — decrypts the pi HA MCP config with the
 # user's SSH key (~/.ssh/GPG), converted to PGP internally via ssh-to-pgp.
 # Writes ~/.pi/agent/mcp.json (sops-install-secrets makes the parent dir).
-{ config, pkgs, lib, sops-nix, ... }:
+{
+  config,
+  lib,
+  sops-nix,
+  ...
+}:
 
 let
   cfg = config.modules.home.sops;

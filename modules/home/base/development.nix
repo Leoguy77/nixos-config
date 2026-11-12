@@ -1,5 +1,10 @@
 # Development tools configuration
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.home.base.development;
@@ -23,20 +28,20 @@ in
       extraConfig = ''
         # Mouse support
         set -g mouse on
-        
+
         # Vi mode
         setw -g mode-keys vi
-        
+
         # Split panes
         bind | split-window -h -c "#{pane_current_path}"
         bind - split-window -v -c "#{pane_current_path}"
-        
+
         # Navigate panes with vim keys
         bind h select-pane -L
         bind j select-pane -D
         bind k select-pane -U
         bind l select-pane -R
-        
+
         # Reload config
         bind r source-file ~/.config/tmux/tmux.conf \; display "Config reloaded!"
       '';

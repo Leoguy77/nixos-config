@@ -1,4 +1,4 @@
-{ config, ... }:
+_:
 
 # LUKS-encrypted BTRFS disk layout for nixos-anywhere.
 # Use: nixos-anywhere --disko modules/disko/luks-btrfs.nix --disk main DEVICE ...
@@ -9,7 +9,7 @@
   disko.devices = {
     disk.main = {
       type = "disk";
-      device = "/dev/sda";                     # placeholder, override with --disk main DEVICE
+      device = "/dev/sda"; # placeholder, override with --disk main DEVICE
       content = {
         type = "gpt";
         partitions = {
@@ -20,7 +20,10 @@
               type = "filesystem";
               format = "vfat";
               mountpoint = "/boot";
-              mountOptions = [ "fmask=0077" "dmask=0077" ];
+              mountOptions = [
+                "fmask=0077"
+                "dmask=0077"
+              ];
             };
           };
           luks = {
@@ -29,22 +32,32 @@
               type = "luks";
               name = "crypted";
               settings.allowDiscards = true;
-              passwordFile = "/tmp/luks-password";  # injected by --disk-encryption-keys
+              passwordFile = "/tmp/luks-password"; # injected by --disk-encryption-keys
               content = {
                 type = "btrfs";
                 extraArgs = [ "-f" ];
                 subvolumes = {
                   "/root" = {
                     mountpoint = "/";
-                    mountOptions = [ "compress=zstd" "noatime" ];
+                    mountOptions = [
+                      "compress=zstd"
+                      "noatime"
+                    ];
                   };
                   "/home" = {
                     mountpoint = "/home";
-                    mountOptions = [ "compress=zstd" "noatime" ];
+                    mountOptions = [
+                      "compress=zstd"
+                      "noatime"
+                    ];
                   };
                   "/nix" = {
                     mountpoint = "/nix";
-                    mountOptions = [ "compress=zstd" "noatime" "nodiratime" ];
+                    mountOptions = [
+                      "compress=zstd"
+                      "noatime"
+                      "nodiratime"
+                    ];
                   };
                   "/swap" = {
                     mountpoint = "/.swapvol";

@@ -1,6 +1,6 @@
 # Shared variables for all configurations
 # Import this in modules via specialArgs as `myvars`
-{ lib, ... }:
+_:
 
 {
   # User information
@@ -23,7 +23,11 @@
     mainGateway6 = "fe80::1";
 
     # DNS servers
-    nameservers = [ "1.1.1.1" "1.0.0.1" "8.8.8.8" ];
+    nameservers = [
+      "1.1.1.1"
+      "1.0.0.1"
+      "8.8.8.8"
+    ];
 
     # Host-specific addresses
     hostsAddr = {
@@ -54,8 +58,7 @@
   git = {
     userName = "Leon";
     userEmail = "leonschneider29@googlemail.com";
-    signingKey =
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l";
+    signingKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l";
   };
 
   # Theme preferences

@@ -6,7 +6,13 @@
 #
 # Static networking itself lives in the host config (hosts/<name>/default.nix),
 # because the addresses/gateways are provider specific.
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.server;
@@ -171,13 +177,15 @@ in
       # The derivation output is the key file itself, not a directory: sshd's
       # HostKey needs a file and the initrd copies it to /etc/ssh/<name>.
       hostKeys = [
-        (if cfg.initrdSshHostKey != null then
-          cfg.initrdSshHostKey
-        else
-          pkgs.runCommand "initrd-ssh-host-key" { } ''
-            ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" \
-              -C "initrd@${config.networking.hostName}" -f $out
-          '')
+        (
+          if cfg.initrdSshHostKey != null then
+            cfg.initrdSshHostKey
+          else
+            pkgs.runCommand "initrd-ssh-host-key" { } ''
+              ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -N "" \
+                -C "initrd@${config.networking.hostName}" -f $out
+            ''
+        )
       ];
       extraConfig = "PermitRootLogin yes";
     };

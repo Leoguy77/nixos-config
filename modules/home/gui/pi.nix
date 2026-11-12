@@ -1,5 +1,11 @@
 # Pi agent configuration
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 let
   cfg = config.modules.home.gui.pi;
@@ -41,9 +47,11 @@ in
     home.packages =
       (lib.optional (cfg.llmAgentsPackage != null) cfg.llmAgentsPackage)
       # bili: manage/launch the billion-context proxy (dist is self-contained, needs node)
-      ++ [ (pkgs.writeShellScriptBin "bili" ''
-        exec ${pkgs.nodejs}/bin/node ${piBillionContext}/dist/index.js "$@"
-      '') ];
+      ++ [
+        (pkgs.writeShellScriptBin "bili" ''
+          exec ${pkgs.nodejs}/bin/node ${piBillionContext}/dist/index.js "$@"
+        '')
+      ];
 
     # billion-context: context-compression proxy. The pi extension (registered
     # in settings.json `packages` below) is a thin client that connects to this
@@ -78,30 +86,32 @@ in
     # (nix flake lock --update-input pi-packages) + rebuild to get new versions.
     # Because settings.json is HOME-MANAGER-MANAGED here, do not also use `pi install`
     # (it would need a writable settings.json and npm); manage packages from this file.
-    home.file.".pi/agent/settings.json".text = lib.mkIf cfg.extensions (builtins.toJSON {
-      lastChangelogVersion = "1.4.0";
-      # Retry backoff: the providers (KISSKI/IONOS via bili) rate-limit with a
-      # 10s sliding window (2 req/10s) and put "Retry after N seconds" in the
-      # body. Pi 1.4.0's agent-level retry is pure exponential backoff and does
-      # NOT parse that hint (verified in the binary: retryDelayMs() ignores
-      # Retry-After; pi-ai's header-honoring path needs retry.provider.maxRetries
-      # > 0 but the SDK client is hard-coded to 0). The default 2s/4s/8s retries
-      # all land inside the window and fail. A 12s base makes the first retry
-      # land outside it: 12s, 24s, 48s, 60s (capped).
-      retry = {
-        enabled = true;
-        maxRetries = 4;
-        baseDelayMs = 12000;
-      };
-      packages = [
-        (toString piLens)
-        (toString piHermesMemory)
-        (toString piPonytail)
-        (toString piBillionContext)
-        (toString piWebAccess)
-        (toString piBigpowers)
-      ];
-    });
+    home.file.".pi/agent/settings.json".text = lib.mkIf cfg.extensions (
+      builtins.toJSON {
+        lastChangelogVersion = "1.4.0";
+        # Retry backoff: the providers (KISSKI/IONOS via bili) rate-limit with a
+        # 10s sliding window (2 req/10s) and put "Retry after N seconds" in the
+        # body. Pi 1.4.0's agent-level retry is pure exponential backoff and does
+        # NOT parse that hint (verified in the binary: retryDelayMs() ignores
+        # Retry-After; pi-ai's header-honoring path needs retry.provider.maxRetries
+        # > 0 but the SDK client is hard-coded to 0). The default 2s/4s/8s retries
+        # all land inside the window and fail. A 12s base makes the first retry
+        # land outside it: 12s, 24s, 48s, 60s (capped).
+        retry = {
+          enabled = true;
+          maxRetries = 4;
+          baseDelayMs = 12000;
+        };
+        packages = [
+          (toString piLens)
+          (toString piHermesMemory)
+          (toString piPonytail)
+          (toString piBillionContext)
+          (toString piWebAccess)
+          (toString piBigpowers)
+        ];
+      }
+    );
 
     # pi-web-access: web search, URL fetching, repo cloning, PDF/video extraction
     home.file.".pi/agent/extensions/pi-web-access" = lib.mkIf cfg.extensions {
@@ -128,7 +138,7 @@ in
           "kisski": {
             "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "!op read 'op://gnh/GWDG chat-ai/Anmeldedaten'",
+            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
             "models": [
               {
                 "id": "deepseek-v4-flash-0731",

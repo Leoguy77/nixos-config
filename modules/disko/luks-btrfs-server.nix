@@ -12,7 +12,7 @@
 #
 # The passphrase written to the LUKS header at install time is the one you type
 # at boot (or send over the initrd SSH connection).
-{ ... }:
+_:
 
 {
   disko.devices = {
@@ -77,8 +77,10 @@
                     ];
                   };
 
-                  # Mail stores (RocksDB) rewrite pages in place; CoW would
-                  # fragment them badly, so this subvolume is nodatacow.
+                  # A plain mail spool is written sequentially, so CoW costs
+                  # little here; nodatacow is kept from the previous
+                  # database-backed stack, where in-place page rewrites
+                  # fragmented badly.
                   "/var" = {
                     mountpoint = "/var";
                     mountOptions = [

@@ -1,6 +1,11 @@
 # Kirito-specific Home Manager configuration
 # Replacement for Surface - full desktop/laptop with GUI support
-{ config, pkgs, lib, myvars, pkgs-stable, inputs, ... }:
+{
+  pkgs,
+  myvars,
+  inputs,
+  ...
+}:
 
 {
   # Required by Home Manager

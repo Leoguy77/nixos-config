@@ -9,7 +9,13 @@
 #
 # The repository password can be provided either via a sops secret
 # (recommended) or a plain file. See modules.backup.passwordFile.
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.backup;
@@ -122,13 +128,15 @@ in
     };
 
     services.restic.backups.system = {
-      inherit (cfg) paths exclude pruneOpts initialize;
-      repository = cfg.repository;
-      passwordFile =
-        if cfg.passwordFile != null
-        then cfg.passwordFile
-        else "/var/backup/restic-password";
-      timerConfig = cfg.timerConfig;
+      inherit (cfg)
+        paths
+        exclude
+        pruneOpts
+        initialize
+        ;
+      inherit (cfg) repository;
+      passwordFile = if cfg.passwordFile != null then cfg.passwordFile else "/var/backup/restic-password";
+      inherit (cfg) timerConfig;
     };
   };
 }

@@ -1,0 +1,5 @@
+# statix lints. W20 ("Avoid repeated keys in attribute sets") is a style
+# preference: this repo groups related options under repeated `modules.x` /
+# `services.x` keys per feature, and collapsing them into one attrset merge
+# would mix unrelated concerns. Every other lint stays on.
+disabled = ["repeated_keys"]

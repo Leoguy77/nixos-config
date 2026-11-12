@@ -86,7 +86,10 @@ in
       after = [ "networkmanager.service" ];
       wants = [ "networkmanager.service" ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.networkmanager pkgs.coreutils ];
+      path = [
+        pkgs.networkmanager
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;

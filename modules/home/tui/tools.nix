@@ -1,5 +1,10 @@
 # TUI (Terminal UI) tools configuration
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.home.tui;
@@ -17,10 +22,10 @@ in
     home.packages = with pkgs; [
       # System monitoring
       (lib.mkIf cfg.btop btop)
-      
+
       # File management
       (lib.mkIf cfg.yazi yazi)
-      
+
       # Terminal multiplexer (alternative to tmux)
       (lib.mkIf cfg.zellij zellij)
     ];
@@ -38,7 +43,7 @@ in
     # Yazi configuration
     programs.yazi = lib.mkIf cfg.yazi {
       enable = true;
-      shellWrapperName = "y";  # New default (was "yy" in legacy)
+      shellWrapperName = "y"; # New default (was "yy" in legacy)
       settings = {
         manager = {
           show_hidden = true;

@@ -1,6 +1,10 @@
 # Security settings (sudo, polkit, seccomp)
 # Agenix secrets moved to modules/nixos/secrets.nix
-{ config, pkgs, lib, ... }:
+{
+  config,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.security;

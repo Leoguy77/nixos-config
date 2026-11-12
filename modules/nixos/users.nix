@@ -1,5 +1,11 @@
 # User accounts configuration
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.users;
@@ -28,11 +34,11 @@ in
     users.users.${cfg.mainUser} = {
       isNormalUser = true;
       description = lib.mkDefault myvars.fullName;
-      extraGroups = [ 
-        "networkmanager" 
-        "wheel" 
+      extraGroups = [
+        "networkmanager"
+        "wheel"
         "input"
-        "dialout"  # serial ports (/dev/ttyUSB*, /dev/ttyACM*) for WebSerial/flashing
+        "dialout" # serial ports (/dev/ttyUSB*, /dev/ttyACM*) for WebSerial/flashing
         cfg.mainUser
       ];
       shell = cfg.userShell;

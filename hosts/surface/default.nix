@@ -1,9 +1,7 @@
 # Surface-specific configuration
 # This is the main entry point for the surface host (desktop/laptop)
 {
-  config,
   pkgs,
-  lib,
   inputs,
   mylib,
   myvars,
@@ -102,7 +100,7 @@
         ;
       sops-nix = inputs."sops-nix";
     };
-    users.leoguy77 = { config, ... }: {
+    users.leoguy77 = { ... }: {
       imports = [
         ../../modules/home
         ./home.nix # Surface-specific home overrides

@@ -6,7 +6,12 @@
 # programs._1password* modules. Installing 1Password via home.packages is
 # not enough — `op read` fails with "connecting to desktop app:
 # connection reset" because the app cannot verify the calling binary.
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.onepassword;

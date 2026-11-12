@@ -1,5 +1,9 @@
 # System services configuration
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.services;

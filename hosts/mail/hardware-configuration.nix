@@ -9,7 +9,6 @@
 # If the VPS turns out not to use virtio (check `lspci` on the provider image),
 # regenerate this with `nixos-generate-config` and drop the fileSystems block.
 {
-  config,
   lib,
   modulesPath,
   ...

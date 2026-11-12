@@ -1,5 +1,11 @@
 # Core home manager settings
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.home.core;
@@ -37,24 +43,24 @@ in
       bat
       zoxide
       fzf
-      
+
       # Development
       lazygit
       delta
       uv # provides uvx — Python tool runner for MCP servers (e.g. mcp-nixos)
       python3 # base interpreter uv/uvx and pip tools use
-      
+
       # Media
       mpv
       imagemagick
-      
+
       # KDE askpass dialog for GUI sudo (used by SUDO_ASKPASS / .config/askpass
       # so the pi agent can prompt for the password via a Plasma dialog)
       kdePackages.kdialog
-      
+
       # Password manager: provided system-wide via programs._1password*
       # (modules.onepassword) so the desktop-app CLI integration works.
-      
+
       # Smart home (MQTT client)
       mosquitto
     ];
@@ -118,13 +124,13 @@ in
     # Create Github public key file
     home.file.".ssh/Github.pub" = {
       text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github\n";
-      force = true;  # Overwrite existing file
+      force = true; # Overwrite existing file
     };
-    
+
     # Create Github private key file (stub - actual key is in 1Password)
     home.file.".ssh/Github" = {
       text = lib.mkDefault "-----BEGIN OPENSSH PRIVATE KEY-----\n-----END OPENSSH PRIVATE KEY-----\n";
-      force = true;  # Overwrite existing file
+      force = true; # Overwrite existing file
     };
 
     # SUDO_ASKPASS — GUI password dialog for pi agent's sudo calls
@@ -158,7 +164,12 @@ in
       syntaxHighlighting.enable = lib.mkDefault true;
       oh-my-zsh = {
         enable = true;
-        plugins = lib.mkDefault [ "git" "docker" "pip" "python" ];
+        plugins = lib.mkDefault [
+          "git"
+          "docker"
+          "pip"
+          "python"
+        ];
         theme = lib.mkDefault "agnoster";
       };
       shellAliases = {
@@ -172,13 +183,13 @@ in
         plugins=(git docker pip python)
         ZSH_THEME="agnoster"
         source $ZSH/oh-my-zsh.sh
-        
+
         # History options
         HISTSIZE=10000
         SAVEHIST=10000
         HISTFILE=~/.zsh_history
         setopt HIST_FCNTL_LOCK HIST_IGNORE_DUPS HIST_IGNORE_SPACE SHARE_HISTORY
-        
+
         # Smart home light control
         function space {
             local mqtt_host=${myvars.networking.smartHome.mqttBroker}
@@ -251,13 +262,13 @@ in
             mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_2/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
             mosquitto_pub -h ${myvars.networking.smartHome.mqttBroker} -t "zigbee2mqtt/elektro_ecke/decke_3/set" -m "{\"state\": \"ON\", \"brightness\": $1}"
         }
-        
+
         # Aliases
         alias ll='eza -la --icons'
         alias ls=eza
         alias cat=bat
         alias grep=rg
-        
+
         # Yazi directory change function
         function y() {
           local tmp="$(mktemp -t "yazi-cwd.XXXXX")"

@@ -1,9 +1,7 @@
 # Kirito-specific configuration (replacement for Surface)
 # Main entry point for the kirito host (desktop/laptop)
 {
-  config,
   pkgs,
-  lib,
   inputs,
   mylib,
   myvars,
@@ -110,7 +108,7 @@
         ;
       sops-nix = inputs."sops-nix";
     };
-    users.leoguy77 = { config, ... }: {
+    users.leoguy77 = { ... }: {
       imports = [
         ../../modules/home
         ./home.nix # Kirito-specific home overrides

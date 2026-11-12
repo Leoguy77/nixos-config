@@ -1,5 +1,10 @@
 # Desktop applications configuration
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.home.gui.desktop;
@@ -189,32 +194,34 @@ in
     # A read-only path makes that write fail with EROFS and the app never
     # opens. So we seed defaults once via activation and let Element own the
     # writable file afterwards (preserves safeStorage keys at runtime).
-    home.activation.elementElectronConfig = lib.mkIf cfg.element.enable (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      f="$HOME/.config/Element/electron-config.json"
-      mkdir -p "$HOME/.config/Element"
-      # Drop a stale home-manager store symlink (read-only) so it doesn't shadow the real file.
-      if [[ -L "$f" ]] && [[ "$(readlink -f "$f")" == /nix/store/* ]]; then
-        rm -f -- "$f"
-      fi
-      # Seed defaults once; afterwards Element owns and WRITES this file, preserving
-      # runtime changes (safeStorage keys, tray prefs) across rebuilds.
-      if [[ ! -e "$f" ]]; then
-        cat > "$f" <<'EOF'
-${builtins.toJSON {
-        warnBeforeExit = cfg.element.settings.warnBeforeExit;
-        minimizeToTray = cfg.element.settings.minimizeToTray;
-        spellCheckerEnabled = cfg.element.settings.spellCheckerEnabled;
-        autoHideMenuBar = cfg.element.settings.autoHideMenuBar;
-        disableHardwareAcceleration = false;
-        enableContentProtection = false;
-        openAtLoginMinimised = cfg.element.settings.openAtLoginMinimised;
-        safeStorageBackend = "kwallet6";
-        locale = cfg.element.settings.locale;
-      }}
-EOF
-        chmod 600 "$f"
-      fi
-    '');
+    home.activation.elementElectronConfig = lib.mkIf cfg.element.enable (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+              f="$HOME/.config/Element/electron-config.json"
+              mkdir -p "$HOME/.config/Element"
+              # Drop a stale home-manager store symlink (read-only) so it doesn't shadow the real file.
+              if [[ -L "$f" ]] && [[ "$(readlink -f "$f")" == /nix/store/* ]]; then
+                rm -f -- "$f"
+              fi
+              # Seed defaults once; afterwards Element owns and WRITES this file, preserving
+              # runtime changes (safeStorage keys, tray prefs) across rebuilds.
+              if [[ ! -e "$f" ]]; then
+                cat > "$f" <<'EOF'
+        ${builtins.toJSON {
+          warnBeforeExit = cfg.element.settings.warnBeforeExit;
+          minimizeToTray = cfg.element.settings.minimizeToTray;
+          spellCheckerEnabled = cfg.element.settings.spellCheckerEnabled;
+          autoHideMenuBar = cfg.element.settings.autoHideMenuBar;
+          disableHardwareAcceleration = false;
+          enableContentProtection = false;
+          openAtLoginMinimised = cfg.element.settings.openAtLoginMinimised;
+          safeStorageBackend = "kwallet6";
+          locale = cfg.element.settings.locale;
+        }}
+        EOF
+                chmod 600 "$f"
+              fi
+      ''
+    );
 
     # Dark mode preference
     dconf.settings = lib.mkIf cfg.darkMode {

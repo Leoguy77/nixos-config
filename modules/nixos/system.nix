@@ -1,5 +1,11 @@
 # Core system settings
-{ config, pkgs, lib, myvars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  myvars,
+  ...
+}:
 
 let
   cfg = config.modules.system;
@@ -37,12 +43,18 @@ in
     # Nix settings
     nix = {
       settings = {
-        experimental-features = lib.mkDefault [ "nix-command" "flakes" ];
+        experimental-features = lib.mkDefault [
+          "nix-command"
+          "flakes"
+        ];
         # Disabled: with useGlobalPkgs + bundles, nix-store --optimise on every
         # boot (nix-optimise.service, wantedBy=multi-user.target) makes boot
         # take minutes on a large store. GC is still handled by nix.gc timer.
         auto-optimise-store = lib.mkDefault false;
-        trusted-users = lib.mkForce [ "root" myvars.username ];
+        trusted-users = lib.mkForce [
+          "root"
+          myvars.username
+        ];
       };
       gc = {
         automatic = lib.mkDefault true;

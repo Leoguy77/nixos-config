@@ -1,6 +1,10 @@
 # Boot configuration
 # Note: kernel modules and cpu microcode are set in hardware-configuration.nix
-{ config, pkgs, lib, ... }:
+{
+  config,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.boot;
