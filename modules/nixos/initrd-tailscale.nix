@@ -20,7 +20,12 @@
 #     suffixed (mail-initrd-1) right after a reboot. Check `tailscale status`.
 #   - This host cannot be rebuilt by GitHub autoUpgrade if the key file is not
 #     committed (see hosts/mail/README.md).
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cfg = config.modules.initrdTailscale;
@@ -40,7 +45,8 @@ let
     "--netfilter-mode=off"
     "--accept-dns=false"
     "--accept-routes=false"
-  ] ++ cfg.extraUpFlags;
+  ]
+  ++ cfg.extraUpFlags;
 
   # Bind sshd to whatever address tailscaled handed us, or fail (systemd
   # retries after RestartSec). No polling loop, no `sleep`, no external tools.
@@ -148,6 +154,14 @@ in
     boot.initrd.kernelModules = [ "tun" ];
     boot.initrd.availableKernelModules = [ "tun" ];
 
+    # The mount below is a vfat ESP. NixOS only pulls a filesystem's kernel
+    # module into the initrd when its type is listed here, and the default list
+    # is derived from the `neededForBoot` mounts — /boot is not one of them.
+    # Without this the mount fails every boot with
+    # "Failed to mount /run/initrd-boot" and tailscaled gets no state dir.
+    # iso-image.nix sets this for the same reason.
+    boot.initrd.supportedFilesystems = [ "vfat" ];
+
     # The ESP is unencrypted, so it can hold the tailscaled state from the very
     # start of stage 1.
     boot.initrd.systemd.mounts = [
@@ -202,6 +216,12 @@ in
         # and its tailnet address across reboots and never needs re-auth.
         ExecStart = "${tailscale}/bin/tailscaled --state=${cfg.stateFile} --statedir=/run/tailscale --socket=/run/tailscale/tailscaled.sock --netfilter-mode=off";
         Environment = [ "SSL_CERT_FILE=${caBundle}" ];
+        # Degraded fallback: if the ESP mount failed, tailscaled still starts with
+        # an ephemeral state dir on tmpfs instead of taking the whole unlock path
+        # down with it. Costs the persisted node identity (needs a fresh auth key
+        # next boot), which beats "cannot unlock at all". `mkdir` resolves via the
+        # initrd manager PATH (/bin:/sbin), where coreutils already lives.
+        ExecStartPre = "mkdir -p ${cfg.stateMountPoint}";
         Restart = "on-failure";
         RestartSec = 3;
       };

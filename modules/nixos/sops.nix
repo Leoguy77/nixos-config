@@ -1,10 +1,14 @@
 # System-level sops (sops-nix) — decrypts secrets into /run/secrets/<name>.
 #
-# Enabled by default so existing hosts keep working; a host that has not been
-# authorised in .sops.yaml yet (e.g. a freshly installed server) must set
-# `modules.sops.enable = false`, otherwise activation fails at boot because the
-# age key of the machine is not a recipient of the file yet.
-{ config, pkgs, lib, sops-nix, ... }:
+# Enabled by default so existing hosts keep working. A host whose age key is not
+# in .sops.yaml may still have it on, as long as it declares no secrets: sops-nix
+# only starts its boot service when the secret set is non-empty.
+{
+  config,
+  lib,
+  sops-nix,
+  ...
+}:
 
 let
   cfg = config.modules.sops;
@@ -24,8 +28,15 @@ in
       # Decrypt with the machine's SSH host key (sops-nix converts it to an age
       # identity internally, so it works even though raw age can't use host keys).
       age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    };
 
-      secrets.wg0_private_key = { };
+    # Declared only when the consumer is enabled. sops-nix starts a boot service
+    # whenever the secret set is non-empty, so one unused secret makes every host
+    # try to decrypt a key it may not be a recipient of — activation fails and
+    # the machine does not come up. With nothing declared here, turning
+    # modules.sops on for a host is free until that host has a secret of its own.
+    sops.secrets = lib.mkIf config.modules.wireguard.enable {
+      wg0_private_key = { };
     };
   };
 }
