@@ -138,7 +138,7 @@ in
           "kisski": {
             "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
+            "apiKey": "!op read 'op://gnh/GWDG chat-ai/Anmeldedaten'",
             "models": [
               {
                 "id": "deepseek-v4-flash-0731",

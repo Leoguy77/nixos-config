@@ -155,7 +155,7 @@ if [ "$TS_ENABLED" = "true" ] && [ ! -s "$AUTHKEY" ] && command -v sops >/dev/nu
 	OSECRET="$(sops_get tailscale_oauth_client_secret || true)"
 
 	if [ -n "$OID" ] && [ -n "$OSECRET" ] && command -v curl >/dev/null 2>&1; then
-		echo "→ minting a 1-hour auth key from the tailscale OAuth client…"
+		echo "→ minting a single-use auth key from the tailscale OAuth client…"
 		# No jq: parse the two fields we need with sed. Both responses are flat JSON.
 		TOKEN="$(curl -fsS -u "$OID:$OSECRET" \
 			https://api.tailscale.com/api/v2/oauth/token \
@@ -163,11 +163,14 @@ if [ "$TS_ENABLED" = "true" ] && [ ! -s "$AUTHKEY" ] && command -v sops >/dev/nu
 			sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
 
 		if [ -n "$TOKEN" ]; then
-			# Non-reusable, non-ephemeral, pre-approved, tagged so the node can only
-			# ever be an FDE-unlock node. `tailnet/-` is the client's own tailnet.
+			# 24h, not 1h: the key is minted here but first used by the initrd
+			# *after* the build, closure copy, disko run, install and reboot. On
+			# a 1-vCPU box over the internet that can outlast a short window, and
+			# an expired key drops you back on the provider console. The key is
+			# non-reusable, so it dies on first join either way.
 			KEY="$(curl -fsS -u "$TOKEN:" -H 'Content-Type: application/json' \
 				https://api.tailscale.com/api/v2/tailnet/-/keys \
-				-d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":false,"preauthorized":true,"tags":["'"$TS_TAG"'"]}}},"expirySeconds":3600}' 2>/dev/null |
+				-d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":false,"preauthorized":true,"tags":["'"$TS_TAG"'"]}}},"expirySeconds":86400}' 2>/dev/null |
 				sed -n 's/.*"key":"\([^"]*\)".*/\1/p')"
 			if [ -n "$KEY" ]; then
 				printf '%s' "$KEY" >"$AUTHKEY"
@@ -205,7 +208,7 @@ if [ "$TS_ENABLED" = "true" ]; then
 		echo ""
 		echo "⚠  No bootstrap tailscale auth key, so the first boot will NOT join the"
 		echo "   tailnet and can only be unlocked on the provider console."
-		echo "   Normally this is automatic: deploy.sh mints a 1-hour key from the"
+		echo "   Normally this is automatic: deploy.sh mints a single-use key from the"
 		echo "   tailscale OAuth client stored in sops. Check that:"
 		echo "     • tailscale_oauth_client_id / _secret are in sops/secrets.sops.yaml"
 		echo "     • the client has Devices→Keys→Auth Keys write scope"
