@@ -189,7 +189,12 @@ in
         RuntimeDirectory = "tailscale";
         # State lives on the (unencrypted) ESP, so the node keeps its identity
         # and its tailnet address across reboots and never needs re-auth.
-        ExecStart = "${tailscale}/bin/tailscaled --state=${cfg.stateFile} --statedir=/run/tailscale --socket=/run/tailscale/tailscaled.sock --netfilter-mode=off";
+        #
+        # No --netfilter-mode here: that is a `tailscale up` flag, not a
+        # tailscaled flag. Passing it to the daemon makes it exit instantly with
+        # "flag provided but not defined: -netfilter-mode" and register nothing.
+        # The netfilter setting belongs on the `up` call in the autoconnect unit.
+        ExecStart = "${tailscale}/bin/tailscaled --state=${cfg.stateFile} --statedir=/run/tailscale --socket=/run/tailscale/tailscaled.sock";
         Environment = [ "SSL_CERT_FILE=${caBundle}" ];
         # Degraded fallback: if the ESP mount failed, tailscaled still starts with
         # an ephemeral state dir on tmpfs instead of taking the whole unlock path
