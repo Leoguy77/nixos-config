@@ -11,7 +11,12 @@
 # Records for host1/asuna are in hosts/asuna/dns.nix — they follow that machine,
 # not this one. Both files feed the same registry (mail's default.nix imports
 # both).
-{ mylib, myvars, ... }:
+{
+  config,
+  mylib,
+  myvars,
+  ...
+}:
 
 let
   ipv4 = myvars.networking.hostsAddr.mail.ipv4;
@@ -39,11 +44,11 @@ in
     (rr ''AAAA("webmail", "${ipv6}", CF_PROXY_OFF, ${auto})'')
     (rr ''TXT("mail", "v=spf1 a -all")'')
 
-    # Mail autodiscovery + MTA-STS, all aliases onto this host.
+    # Mail autodiscovery + MTA-STS, all aliases onto this host. nginx picks the
+    # vhost by Host header; each name has its own certificate.
     (rr ''CNAME("autoconfig", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
     (rr ''CNAME("autodiscover", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
     (rr ''CNAME("mta-sts", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
-    (rr ''CNAME("ua-auto-config", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
 
     # ── Mail routing ──────────────────────────────────────────────────────
     (rr ''MX("@", 10, "mail.lsinfra.de.")'')
@@ -51,18 +56,17 @@ in
     # publish its address.
     (rr ''TXT("@", "v=spf1 mx -all")'')
     (rr ''TXT("_dmarc", "v=DMARC1; p=reject; rua=mailto:postmaster@lsinfra.de")'')
-    # MTA-STS: `id` must change whenever the policy at mta-sts.lsinfra.de does.
-    (rr ''TXT("_mta-sts", "v=STSv1; id=17037050128193964371")'')
+    # MTA-STS. The `id` is read from the module, not typed: senders ignore a
+    # policy whose id differs from this record, so a stale literal here would
+    # silently pin every sender to the previous rules.
+    (rr ''TXT("_mta-sts", "v=STSv1; id=${config.modules.mail.mtaStsId}")'')
     (rr ''TXT("_smtp._tls", "v=TLSRPTv1; rua=mailto:postmaster@lsinfra.de")'')
 
     # ── Mail autoconfig (client autodiscovery) ────────────────────────────
+    # Only protocols actually served: 143/587/POP3/JMAP/CalDAV/CardDAV are not
+    # enabled on this box, and advertising them sent clients into dead ports.
     (rr ''SRV("_imaps._tcp", 0, 1, 993, "mail.lsinfra.de.", TTL(300))'')
-    (rr ''SRV("_pop3s._tcp", 0, 1, 995, "mail.lsinfra.de.", TTL(300))'')
     (rr ''SRV("_submissions._tcp", 0, 1, 465, "mail.lsinfra.de.", TTL(300))'')
-    (rr ''SRV("_jmap._tcp", 0, 1, 443, "mail.lsinfra.de.", TTL(300))'')
-    (rr ''SRV("_caldavs._tcp", 0, 1, 443, "mail.lsinfra.de.", TTL(300))'')
-    (rr ''SRV("_carddavs._tcp", 0, 1, 443, "mail.lsinfra.de.", TTL(300))'')
-    (rr ''TXT("_ua-auto-config", "v=UAAC1; a=sha256; d=BnTd+DYWGluHVaWzmpKtTUGj/HPm/VCJkWCoZqLr+Mc=")'')
 
     # ── DKIM ──────────────────────────────────────────────────────────────
     # `mail` is the selector rspamd actually signs with. Its keypair lives in
