@@ -83,6 +83,22 @@ in
     (rr ''TXT("v1-rsa-20261105._domainkey", "v=DKIM1; k=rsa; h=sha256; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp7cWMot1sdcClkeG1J8MEQRnINHJD0PMDAJV6NoBk9W3LK84gtp/1BpV7CNj7nEUGpGIMSoAy/UDdnyOU7fNUQW7E59dHKFLC/+Gsb/FOTgG+eFsJ6cS61mSNj7HbOuZucDJNgTubtQtaE7JHFZfWCmiUBXuF7F9GnZH7633kItpk2QrkB+fEGyw4XaGwytjd4Kx5GlOMX0gDeMnPF0H4r8Jp8xHVQTOvN9bSIHcCuHr0ibArtemJ0qoSEyURtHSP/s9DqnVNE0axI1CbmZAllUfsNudEUtGrTYEwBJgmHpOSIrXdsBuxfChwkwqTTgsrctav/AqHKGproh5zJBWqwIDAQAB")'')
 
     # ── TLS policy ────────────────────────────────────────────────────────
+    # DANE (RFC 7672). Usage 2 = DANE-TA, 1 = SPKI, 1 = SHA-256, so this pins the
+    # public key of ISRG Root X2 — the trust anchor this chain actually serves
+    # (leaf -> YE1 -> Root YE -> ISRG Root X2).
+    #
+    # Deliberately NOT usage 3 (DANE-EE, the leaf key): the 36 records that used
+    # to live here were exactly that, and every one had gone stale against the
+    # live leaf, so remote senders were hard-failing. A leaf key changes on each
+    # ACME renewal; the anchor does not. Pinning the anchor costs nothing in
+    # security here because the leaf is proof of possession of the key the
+    # anchor vouches for, and it cannot silently rot.
+    #
+    # Only `_25._tcp`: DANE for SMTP applies to port 25, which is the only port
+    # remote MTAs connect to. This host does not accept mail on 465 from the
+    # outside — that is submission, used by authenticated local users.
+    (rr ''TLSA("_25._tcp.mail", 2, 1, 1, "762195c225586ee6c0237456e2107dc54f1efc21f61a792ebd515913cce68332")'')
+
     # accounturi pins issuance to one ACME account; drop that clause if the
     # account is ever recreated, or renewal fails.
     (rr ''CAA("@", "issue", "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/3618244571", TTL(300))'')
