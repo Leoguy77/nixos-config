@@ -35,13 +35,18 @@ let
 
   caBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
-  keyFile = cfg.authKeyFile;
-  keyPresent = keyFile != null && builtins.pathExists (toString keyFile);
+  # The bootstrap key lives on the ESP, next to the persisted node state, NOT as
+  # a build input. As a build input it was a `builtins.pathExists` on a gitignored
+  # file, so any rebuild from a checkout without it produced a keyless initrd and
+  # silently overwrote a working /boot. Anything the initrd needs in order to be
+  # unlockable must survive a rebuild, so it lives on the disk instead.
+  authKeyPath = "${cfg.stateMountPoint}/tailscale-authkey";
+
   # Assembled here so the generated script never ends in a dangling backslash
   # when extraUpFlags is empty.
   upFlags = [
     "--hostname=${config.networking.hostName}-initrd"
-    "--auth-key=file:/etc/tailscale-authkey"
+    "--auth-key=file:${authKeyPath}"
     "--netfilter-mode=off"
     "--accept-dns=false"
     "--accept-routes=false"
@@ -76,23 +81,6 @@ in
       default = config.boot.initrd.network.ssh.port;
       defaultText = lib.literalExpression "config.boot.initrd.network.ssh.port";
       description = "Port the initrd sshd listens on (on the tailnet address only).";
-    };
-
-    authKeyFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = "${../../secrets}/tailscale-initrd-${config.networking.hostName}.authkey";
-      defaultText = lib.literalExpression ''"<flake>/secrets/tailscale-initrd-<hostname>.authkey"'';
-      description = ''
-        OPTIONAL one-time bootstrap auth key, by convention
-        `secrets/tailscale-initrd-<hostname>.authkey` (gitignored). Nothing is
-        configured per host: `scripts/deploy.sh` derives it from sops when
-        the file is missing, and the initrd needs no key at all once the node has
-        joined a first time.
-
-        Only a *fresh* install needs it, because there is no persisted node state
-        yet. Anything staged here ends up in the initrd on the unencrypted /boot,
-        so prefer a short-lived key.
-      '';
     };
 
     stateMountPoint = lib.mkOption {
@@ -142,15 +130,6 @@ in
       }
     ];
 
-    warnings = lib.optional (!keyPresent) ''
-      modules.initrdTailscale has no bootstrap auth key at
-      secrets/tailscale-initrd-${config.networking.hostName}.authkey
-      That is expected once the initrd node has joined a first time: its state
-      persists at ${cfg.stateFile}. On a *fresh* install there is no state yet
-      either, so the first boot can only be unlocked on the provider console.
-      scripts/deploy.sh derives the key from sops automatically.
-    '';
-
     boot.initrd.kernelModules = [ "tun" ];
     boot.initrd.availableKernelModules = [ "tun" ];
 
@@ -192,10 +171,6 @@ in
       # tailscaled speaks TLS to the control plane and needs a trust store.
       "/etc/ssl/certs/ca-certificates.crt".source = caBundle;
       "/etc/initrd-sshd-tailnet.sh".text = bindScript;
-    };
-
-    boot.initrd.secrets = lib.optionalAttrs keyPresent {
-      "/etc/tailscale-authkey" = keyFile;
     };
 
     boot.initrd.systemd.services.tailscaled = {
@@ -248,9 +223,11 @@ in
         ts=${tailscale}/bin/tailscale
         sock=/run/tailscale/tailscaled.sock
 
-        # No bootstrap key: after the first join the persisted state reconnects
-        # by itself, so there is nothing to do here.
-        [ -f /etc/tailscale-authkey ] || exit 0
+        # The key is on the ESP, written there once by scripts/deploy.sh. It is
+        # deliberately not a build input: a keyless rebuild must not be able to
+        # strip the machine's ability to unlock itself over the tailnet. After a
+        # successful join the persisted state makes the key unnecessary.
+        [ -f ${authKeyPath} ] || exit 0
 
         # Already joined (persisted state) — `tailscale up` again would fail.
         if "$ts" --socket="$sock" status >/dev/null 2>&1; then

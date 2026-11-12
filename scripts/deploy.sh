@@ -134,6 +134,11 @@ echo "→ hostname: $HOSTNAME_CFG   tailnet-only initrd ssh: $TS_ENABLED"
 # secret never expires, so this works for every server forever with no manual
 # step; the key it produces lives for one hour and only in this temp file.
 #
+# The key is a *bootstrap* input only, and it lives on the ESP rather than in the
+# initrd: the initrd is rebuilt from the store on every switch, so a key baked
+# into it disappears the first time anyone rebuilds without the file present.
+# The ESP survives switches, and the initrd already mounts it for node state.
+#
 # An auth key from a *file* always wins, for the case where the API is unreachable
 # or you want to pin a specific key.
 AUTHKEY="$FLAKE_DIR/secrets/tailscale-initrd-$HOST.authkey"
@@ -399,6 +404,12 @@ echo "→ secrets re-encrypted to the new key"
 
 STAGE_DIR="$(mktemp -d)"
 install -D -m 0600 "$HOST_KEY_FILE" "$STAGE_DIR/etc/ssh/ssh_host_ed25519_key"
+# Land the bootstrap key on the ESP (disko mounts it at /mnt/boot, and
+# --extra-files untars into /mnt). The initrd mounts that same ESP, so the key is
+# there before stage 1 runs and survives every later rebuild.
+if [ "${HAS_AUTHKEY:-0}" = "1" ]; then
+	install -D -m 0600 "$AUTHKEY" "$STAGE_DIR/boot/tailscale-authkey"
+fi
 if [ -n "$EXTRA_FILES" ]; then
 	cp -a "$EXTRA_FILES/." "$STAGE_DIR/"
 	# Re-install after the merge so a caller's tree cannot shadow the key.
