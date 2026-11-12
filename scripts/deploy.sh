@@ -449,9 +449,10 @@ echo ""
 if [ "$TS_ENABLED" = "true" ]; then
 	if [ "$HAS_AUTHKEY" = "1" ]; then
 		echo "  1. Unlock over the tailnet (nothing listens publicly):"
-		echo "       ssh -p 2222 root@$HOSTNAME_CFG-initrd"
-		echo "       # then, in that session:"
-		echo "       systemd-tty-ask-password-agent --watch"
+		echo "       ssh -t -p 2222 root@$HOSTNAME_CFG-initrd systemd-tty-ask-password-agent --watch"
+		echo "     -t is required: the agent prompts on the terminal. The same passphrase"
+		echo "     prompt also appears on the provider console's tty1; use one or the other,"
+		echo "     not both — three wrong tries on either drops the box into emergency mode."
 	else
 		echo "  1. Unlock on the provider console (no bootstrap key was available):"
 		echo "       # the passphrase prompt appears there; type it"
@@ -461,8 +462,7 @@ if [ "$TS_ENABLED" = "true" ]; then
 	echo "     admin console, so the initrd never re-authenticates."
 else
 	echo "  1. Unlock the encrypted root:"
-	echo "       ssh -p 2222 root@${TARGET#*@}"
-	echo "       # then: systemd-tty-ask-password-agent --watch"
+	echo "       ssh -t -p 2222 root@${TARGET#*@} systemd-tty-ask-password-agent --watch"
 fi
 echo ""
 echo "  3. Then, on the running system, nothing to do: the install already"
