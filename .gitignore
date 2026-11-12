@@ -1,5 +1,4 @@
 # NixOS
-flake.lock
 /result
 
 # Local secrets: never commit (the repo is public). Bootstrap keys for the
