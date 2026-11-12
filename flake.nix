@@ -50,10 +50,18 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-
     # Disk management for nixos-anywhere deployments
     disko = {
       url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Declarative mail stack: Postfix + Dovecot + rspamd + DKIM, all in Nix.
+    # GitLab, not GitHub (the GitHub repo is dead). Branch `main` tracks
+    # nixos-unstable-small and reports mailserverRelease 26.11, matching this
+    # flake's nixpkgs — a mismatch is only a warning, but no need to silence it.
+    nixos-mailserver = {
+      url = "gitlab:simple-nixos-mailserver/nixos-mailserver/main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -100,14 +108,17 @@
       };
 
       # Helper: create a NixOS host config from hosts/<name>/
-      mkHost = hostname: nixpkgs.lib.nixosSystem {
-        inherit system specialArgs;
-        modules = [
-          home-manager.nixosModules.home-manager
-          inputs.auto-cpufreq.nixosModules.default
-          ./hosts/${hostname}
-        ];
-      };
+      mkHost =
+        hostname:
+        nixpkgs.lib.nixosSystem {
+          inherit system specialArgs;
+          modules = [
+            home-manager.nixosModules.home-manager
+            inputs.auto-cpufreq.nixosModules.default
+            inputs.nixos-mailserver.nixosModules.mailserver
+            ./hosts/${hostname}
+          ];
+        };
 
       # Auto-discover hosts: every directory under hosts/ with a default.nix
       hostDirs = builtins.readDir ./hosts;
@@ -115,32 +126,70 @@
         name: hostDirs.${name} == "directory" && builtins.pathExists ./hosts/${name}/default.nix
       ) (builtins.attrNames hostDirs);
 
+      # Bootable installer ISO carrying one host's static networking and admin
+      # key, for machines nixos-anywhere's kexec image cannot bootstrap (needs
+      # 1.5 GB RAM; its --no-disko-deps fallback wants tools it does not ship).
+      # Only for hosts that actually have a static address + gateway in vars/;
+      # a laptop has nothing to bake in.
+      isoHosts = builtins.filter (name: (myvars.networking.hostsAddr.${name} or { }) ? ipv4Gateway) hosts;
+
+      mkInstallerIso =
+        hostname:
+        (nixpkgs.lib.nixosSystem {
+          inherit system specialArgs;
+          modules = [
+            "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+            ./modules/iso/installer.nix
+            {
+              modules.isoInstaller = {
+                enable = true;
+                inherit hostname;
+              };
+            }
+          ];
+        }).config.system.build.isoImage;
+
     in
     {
       # NixOS configurations — auto-discovered from hosts/<name>/default.nix
-      nixosConfigurations = builtins.listToAttrs (map (name: {
-        inherit name;
-        value = mkHost name;
-      }) hosts);
+      nixosConfigurations = builtins.listToAttrs (
+        map (name: {
+          inherit name;
+          value = mkHost name;
+        }) hosts
+      );
+
+      # `nix build .#installerIso-mail` — a ready-to-upload installer for that
+      # host. Only the hosts with a static address get one.
+      packages.${system} = builtins.listToAttrs (
+        map (name: {
+          name = "installerIso-${name}";
+          value = mkInstallerIso name;
+        }) isoHosts
+      );
 
       # Home Manager standalone configurations — only for hosts that actually
       # carry a home.nix (servers usually do not).
       homeConfigurations =
         let
-          mkHome = hostname: home-manager.lib.homeManagerConfiguration {
-            inherit pkgs;
-            modules = [
-              ./modules/home
-              ./hosts/${hostname}/home.nix
-            ];
-            extraSpecialArgs = specialArgs;
-          };
+          mkHome =
+            hostname:
+            home-manager.lib.homeManagerConfiguration {
+              inherit pkgs;
+              modules = [
+                ./modules/home
+                ./hosts/${hostname}/home.nix
+              ];
+              extraSpecialArgs = specialArgs;
+            };
           homeHosts = builtins.filter (name: builtins.pathExists ./hosts/${name}/home.nix) hosts;
         in
-        builtins.listToAttrs (map (name: {
-          name = "leoguy77@${name}";
-          value = mkHome name;
-        }) homeHosts);
+        builtins.listToAttrs (
+          map (name: {
+            name = "leoguy77@${name}";
+            value = mkHome name;
+          }) homeHosts
+        );
 
       # Development shell with essential tools
       devShells.${system}.default = pkgs.mkShell {
@@ -155,26 +204,42 @@
           # Git tools
           git
 
+          # Recipe runner for the justfile (deploy, iso, secrets).
+          just
+
+          # Secrets: deploy.sh derives the initrd bootstrap key from sops when it
+          # is on PATH. ssh-to-pgp + gnupg are how you derive the PGP key from
+          # ~/.ssh/GPG so the CLI can open secrets.sops.yaml (SECRETS.md).
+          sops
+          ssh-to-pgp
+          gnupg
+
           # Optional: pre-commit hooks
           # pre-commit-hooks
         ];
 
-        shellHook = ''
-          echo "🔧 NixOS Configuration Development Shell"
-          echo "========================================="
-          echo ""
-          echo "Available tools:"
-          echo "  - nixfmt-rfc-style: Format Nix files"
-          echo "  - deadnix: Detect unused Nix code"
-          echo "  - statix: Lint Nix files"
-          echo "  - alejandra: Alternative Nix formatter"
-          echo ""
-          echo "Quick commands:"
-          echo "  nix fmt              # Format all Nix files"
-          echo "  nix flake check      # Check configuration"
-          echo "  nix build            # Build configuration"
-          echo ""
-        '';
+        shellHook =
+          # Installs .git/hooks/pre-commit on shell entry, so these checks run
+          # locally instead of only under `nix flake check`.
+          self.checks.${system}.pre-commit-check.shellHook + ''
+            echo "🔧 NixOS Configuration Development Shell"
+            echo "========================================="
+            echo ""
+            echo "Available tools:"
+            echo "  - nixfmt-rfc-style: Format Nix files"
+            echo "  - deadnix: Detect unused Nix code"
+            echo "  - statix: Lint Nix files"
+            echo "  - alejandra: Alternative Nix formatter"
+            echo ""
+            echo "Quick commands:"
+            echo "  just                 # List the justfile recipes"
+            echo "  just deploy root@ip  # Install a host"
+            echo "  just iso mail        # Build its installer ISO"
+            echo "  nix fmt              # Format all Nix files"
+            echo "  nix flake check      # Check configuration"
+            echo "  nix build            # Build configuration"
+            echo ""
+          '';
       };
 
       # Pre-commit checks for code quality
@@ -204,7 +269,10 @@
         };
       };
 
-      # Formatter for nix fmt
-      formatter.${system} = pkgs.nixfmt-rfc-style;
+      # Formatter for nix fmt. Must be nixfmt-tree, not bare nixfmt: `nix fmt`
+      # passes its arguments through, and with none given the bare nixfmt reads
+      # *stdin* and dies on the empty expression. nixfmt-tree walks the tree
+      # instead, which is what the command is actually for.
+      formatter.${system} = pkgs.nixfmt-tree;
     };
 }
