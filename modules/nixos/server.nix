@@ -207,6 +207,19 @@ in
             ''
         )
       ];
+      # Root only, unlike stage 2 (which sets PermitRootLogin = "no"). Not an
+      # oversight — there is no other account that can do anything here:
+      #   - the initrd has no sudo and this sshd sets `UsePAM no`, so a
+      #     non-root login could not escalate to the uid-0 operations below;
+      #   - both unlock paths need uid 0: `systemd-tty-ask-password-agent`
+      #     watches /run/user/0/systemd/ask-password, and `systemd-cryptsetup`
+      #     opens a keyslot on the real block device;
+      #   - `boot.initrd.network.ssh` writes exactly one authorized-keys file,
+      #     /etc/ssh/authorized_keys.d/root, and the initrd /etc/passwd holds
+      #     only root and system users — adding a named account would mean
+      #     hand-rolling both, to run commands that still need root.
+      # Exposure is bounded by modules.initrdTailscale below: tailnet address
+      # only, port 2222, tag:fde-unlock. Never public.
       extraConfig = "PermitRootLogin yes";
     };
 
