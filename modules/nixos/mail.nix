@@ -587,9 +587,9 @@ in
     # session id the server never issued, which closes session fixation.
     services.phpfpm.pools.roundcube.phpOptions = {
       expose_php = "Off";
-      session.cookie_httponly = "1";
-      session.cookie_secure = "1";
-      session.use_strict_mode = "1";
+      "session.cookie_httponly" = "1";
+      "session.cookie_secure" = "1";
+      "session.use_strict_mode" = "1";
     };
 
     # ── DKIM key ───────────────────────────────────────────────────────────
