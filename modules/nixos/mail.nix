@@ -508,6 +508,10 @@ in
         // ManageSieve: lets the webmail edit server-side filters.
         $config['managesieve_host'] = 'tls://${cfg.hostname}:4190';
         $config['managesieve_usetls'] = true;
+        // Roundcube would otherwise send its own X-Frame-Options (lowercase
+        // `sameorigin`) on top of nginx's, and the browser sees the pair as a
+        // duplicate header with conflicting case. nginx is the single source.
+        $config['x_frame_options'] = false;
       '';
     };
 
