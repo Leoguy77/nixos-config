@@ -183,12 +183,9 @@ in
         never sets that bit, so Postfix silently falls back to opportunistic
         `tls=may` and a bogus TLSA record is ignored rather than enforced.
 
-        Sets `DNS` to the local kresd recursor and `DNSSEC` to `true`. kresd
-        ships with nixos-mailserver (`localDnsResolver`) and is a full
-        recursor, so it returns RRSIGs and lets resolved build its own chain
-        of trust. Without that, resolved sits behind a validating upstream
-        that strips the signatures and rejects every zone — see the comment at
-        the assignment.
+        Sets `DNS` to `1.1.1.1`, which must be explicit: left unset, resolved
+        treats the link-provided servers as DNSSEC-unsupported and fails every
+        unsigned zone with "no-signature".
       '';
     };
 
@@ -446,15 +443,13 @@ in
     # `smtp_dns_support_level = dnssec` trusts only the AD bit. See the
     # dnssecValidation option.
     #
-    # resolved is pointed at kresd (SNM's `localDnsResolver`, listening on
-    # 127.0.0.1:53) rather than left on the upstreams from DHCP/static config.
-    # kresd is a full recursor that returns RRSIGs, so resolved can build its
-    # own chain of trust and strict `DNSSEC=true` works. Pointed straight at
-    # public resolvers instead, resolved gets pre-validated answers with the
-    # signatures stripped and fails with "no-signature" on *every* zone —
-    # including unsigned ones like github.com, which broke
-    # `nixos-rebuild --flake github:…` and system.autoUpgrade outright.
-    services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation "127.0.0.1";
+    # DNS is set explicitly, which is the load-bearing part. Left unset,
+    # resolved falls back to whatever the link advertises and then reports the
+    # server as DNSSEC-unsupported and fails every unsigned zone with
+    # "no-signature" — which broke `nixos-rebuild --flake github:…` and
+    # system.autoUpgrade outright. 1.1.1.1 returns RRSIGs and NSEC3 proofs when
+    # queried with the DO bit, so strict validation works from it.
+    services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation "1.1.1.1";
     services.resolved.settings.Resolve.DNSSEC = if cfg.dnssecValidation then "true" else "false";
 
     # ── Roundcube ──────────────────────────────────────────────────────────
