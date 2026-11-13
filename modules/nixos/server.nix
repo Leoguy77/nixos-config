@@ -145,6 +145,26 @@ in
       "vm.max_map_count" = 262144;
       "net.core.somaxconn" = 1024;
       "net.ipv4.tcp_syncookies" = 1;
+
+      # A server routes nothing and has one static uplink, so an ICMP redirect
+      # is either a misconfiguration or an attempt to steer the default route.
+      # `secure_redirects` only narrows which gateways may redirect — still a
+      # trust decision this box has no reason to make.
+      "net.ipv4.conf.all.accept_redirects" = false;
+      "net.ipv4.conf.all.secure_redirects" = false;
+      "net.ipv4.conf.all.send_redirects" = false;
+      "net.ipv6.conf.all.accept_redirects" = false;
+      # Source-routed packets let a sender pick the return path past the
+      # firewall. Nothing legitimate sends them.
+      "net.ipv4.conf.all.accept_source_route" = false;
+      "net.ipv6.conf.all.accept_source_route" = false;
+      # Log, rather than silently drop, packets whose source address could not
+      # have arrived on that interface — the cheap signal of spoofing.
+      "net.ipv4.conf.all.log_martians" = true;
+      # TIME_WAIT assassination (RFC 1337): without it a spoofed RST can tear
+      # down a half-closed connection, which is the exact shape of an SMTP
+      # session waiting on DATA.
+      "net.ipv4.tcp_rfc1337" = true;
     };
 
     services.journald.settings.Journal = {
@@ -239,6 +259,9 @@ in
         PermitRootLogin = "prohibit-password";
         X11Forwarding = false;
         AllowAgentForwarding = false;
+        # Nothing on a mail server needs to tunnel through sshd — Tailscale
+        # carries its own traffic via tailscaled, not through an SSH session.
+        AllowTcpForwarding = false;
         MaxAuthTries = 3;
         ClientAliveInterval = 60;
         ClientAliveCountMax = 3;
@@ -250,6 +273,14 @@ in
       enable = true;
       maxretry = 5;
       bantime = "1h";
+      # Repeat offenders come back the moment the hour is up, from the same
+      # address or the same /24. Escalating bans cost nothing and turn a
+      # rotating-code brute force into a one-time event.
+      bantime-increment = {
+        enable = true;
+        multipliers = "2";
+        maxtime = "1w";
+      };
       ignoreIP = [
         "127.0.0.1/8"
         "::1"

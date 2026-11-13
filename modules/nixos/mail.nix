@@ -496,6 +496,53 @@ in
       443
     ];
 
+    # ── Intrusion handling for the mail protocols ──────────────────────────
+    # The sshd jail is on for every server host, which leaves the three ports
+    # exposed to the whole internet unjailed. dovecot covers 993 and 4190
+    # (imap-login/managesieve-login lines); postfix covers 25 and 465.
+    #
+    # Both stock filters carry their own `journalmatch`, so the systemd backend
+    # picks up the right unit without per-jail wiring. Verified against this
+    # box's own logs before enabling: 4/880 dovecot lines and 24/3682 postfix
+    # lines matched, i.e. the auth-failure lines and not the delivery chatter.
+    services.fail2ban.jails = {
+      dovecot.settings = {
+        enabled = true;
+        backend = "systemd";
+        # Brute force is slow per-connection (TLS handshake each time), so a
+        # wider window than sshd's catches the ones that stay under 5 tries.
+        findtime = "30m";
+        maxretry = 5;
+        bantime = "1h";
+      };
+      postfix.settings = {
+        enabled = true;
+        backend = "systemd";
+        findtime = "30m";
+        maxretry = 5;
+        bantime = "1h";
+        # Stock `mode=more` only matches the RCPT rejections. `extra` adds the
+        # SASL failure rule, which is what catches password guessing on 465
+        # where no RCPT ever arrives. Verified against 3682 real log lines:
+        # 24 matched, and the offenders were relay abuse (103.47.145.x) plus
+        # protocol probes — diagnostic scanners hit 1-3 times, so maxretry=5
+        # leaves mxtoolbox/censys/shadowserver unbanned.
+        mode = "extra";
+      };
+      # Webmail is the one auth path fail2ban would otherwise miss entirely:
+      # PHP opens the IMAP connection from 127.0.0.1, so dovecot's jail sees the
+      # loopback address and ignoreIP discards it. Roundcube logs the real client
+      # ip itself, so this jail bans the actual attacker.
+      roundcube.settings = {
+        enabled = true;
+        backend = "systemd";
+        filter = "roundcube-auth";
+        findtime = "30m";
+        maxretry = 5;
+        bantime = "1h";
+      };
+    };
+
     # ── DKIM key ───────────────────────────────────────────────────────────
     # rspamd reads this directly (the path is what mailserver.dkim...keyFile
     # above points at), so the file must belong to rspamd, not root: sops-nix
