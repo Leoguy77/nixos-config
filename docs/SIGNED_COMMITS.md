@@ -55,19 +55,50 @@ programs.git.settings.gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
 home.file.".ssh/allowed_signers".text = "leonschneider29@googlemail.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHt…";
 ```
 
-## What is *not* enforced
+## What is enforced now
 
-There is **no** hook that blocks unsigned commits. `git commit --no-gpg-sign`
-succeeds, and nothing checks the result. Signing happens because
-`signByDefault = true`, not because anything forbids the alternative.
+A `commit-msg` hook refuses to let git write an unsigned commit. It is declared
+in [`flake.nix`](../flake.nix) under `checks.<system>.pre-commit-check` and
+installed by the devShell's `shellHook`, so entering `nix develop .#` on any
+machine self-installs it.
 
-The `pi-extensions/enforce-signed-commits/` directory contains an old hook that
-was meant to fill this role. **Do not install it**: `install.sh` overwrites
-`.git/hooks/pre-commit`, which this repo generates from
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) (deadnix, nixfmt, statix)
-— you would trade lint for a config check. If enforcement is wanted, implement it
-as a `post-commit` check (git-hooks.nix only manages `pre-commit`) or as a CI
-step, not by clobbering that file.
+It checks two things, because either alone is bypassable:
+
+| Attempt | Result |
+|---|---|
+| plain `git commit` | allowed (and signed) |
+| `git commit --no-gpg-sign` | **refused** — the flag is in git's argv |
+| `git -c commit.gpgsign=false commit` | **refused** — the hook reads the effective config |
+| `git config --unset commit.gpgsign` | allowed, because the global setting still says `true` |
+| `git commit --no-verify` | **skipped** — see below |
+
+### Why `commit-msg` and not `pre-commit`
+
+`pre-commit` runs before the message exists; `commit-msg` is the last stage before
+git writes the object. Anything later (`post-commit`) is a notification: the
+commit already exists and a hook can no longer stop it.
+
+### The one gap: `--no-verify`
+
+`git commit --no-verify` skips every hook in this repository, including this one.
+That is git's own escape hatch and **cannot be closed from inside a repo** — a
+hook cannot veto its own suppression. Two things cover the gap:
+
+1. **GitHub branch protection** — Settings → Branches → `main` → *Require signed
+   commits*. This also catches commits made from a machine that never entered the
+   devShell, which a hook never sees.
+2. **Review before merge** — `git log --show-signature`, once
+   `allowedSignersFile` is configured (below).
+
+Neither is set up yet. Until branch protection is on, this hook is a guardrail,
+not a guarantee.
+
+### Don't install the old extension
+
+The `pi-extensions/enforce-signed-commits/` directory contains an older hook that
+predates this. **Do not install it**: its `install.sh` overwrites
+`.git/hooks/pre-commit`, which git-hooks.nix generates from these same flake
+checks — you would trade deadnix/nixfmt/statix for a config check.
 
 ## Rotating the signing key
 

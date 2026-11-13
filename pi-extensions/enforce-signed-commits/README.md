@@ -2,9 +2,11 @@
 
 > **Status: not installed, and it should stay that way.**
 >
-> Signing is handled declaratively by `programs.git` in
-> [`modules/home/base/core.nix`](../../modules/home/base/core.nix); see
-> [`docs/SIGNED_COMMITS.md`](../../docs/SIGNED_COMMITS.md). This extension is
+> Signing is handled declaratively by `programs.git` plus a `commit-msg`
+> hook declared in `flake.nix`; see
+> [`docs/SIGNED_COMMITS.md`](../../docs/SIGNED_COMMITS.md). The original
+> declarative setup lives in
+> [`modules/home/base/core.nix`](../../modules/home/base/core.nix). This extension is
 > kept for reference only: `install.sh` overwrites `.git/hooks/pre-commit`,
 > which this repo generates from `.pre-commit-config.yaml` (deadnix, nixfmt,
 > statix). Installing it would replace the linters, not add to them.
