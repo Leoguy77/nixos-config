@@ -183,8 +183,12 @@ in
         never sets that bit, so Postfix silently falls back to opportunistic
         `tls=may` and a bogus TLSA record is ignored rather than enforced.
 
-        Sets `DNSSEC` to `allow-downgrade` rather than `true`: see the comment
-        at the assignment for why strict mode breaks unsigned zones here.
+        Sets `DNS` to the local kresd recursor and `DNSSEC` to `true`. kresd
+        ships with nixos-mailserver (`localDnsResolver`) and is a full
+        recursor, so it returns RRSIGs and lets resolved build its own chain
+        of trust. Without that, resolved sits behind a validating upstream
+        that strips the signatures and rejects every zone — see the comment at
+        the assignment.
       '';
     };
 
@@ -442,14 +446,16 @@ in
     # `smtp_dns_support_level = dnssec` trusts only the AD bit. See the
     # dnssecValidation option.
     #
-    # `allow-downgrade`, NOT `true`. Strict `DNSSEC=true` makes resolved build
-    # its own chain of trust, and behind an upstream that also validates it
-    # fails with "no-signature" on *every* zone — including unsigned ones like
-    # github.com, which broke `nixos-rebuild --flake github:…` and
-    # system.autoUpgrade outright. allow-downgrade takes the upstream's verdict
-    # when it gives one and still rejects a zone that is signed but bogus,
-    # which is the property RFC 7672 actually needs.
-    services.resolved.settings.Resolve.DNSSEC = lib.mkIf cfg.dnssecValidation "allow-downgrade";
+    # resolved is pointed at kresd (SNM's `localDnsResolver`, listening on
+    # 127.0.0.1:53) rather than left on the upstreams from DHCP/static config.
+    # kresd is a full recursor that returns RRSIGs, so resolved can build its
+    # own chain of trust and strict `DNSSEC=true` works. Pointed straight at
+    # public resolvers instead, resolved gets pre-validated answers with the
+    # signatures stripped and fails with "no-signature" on *every* zone —
+    # including unsigned ones like github.com, which broke
+    # `nixos-rebuild --flake github:…` and system.autoUpgrade outright.
+    services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation "127.0.0.1";
+    services.resolved.settings.Resolve.DNSSEC = if cfg.dnssecValidation then "true" else "false";
 
     # ── Roundcube ──────────────────────────────────────────────────────────
     services.roundcube = {
