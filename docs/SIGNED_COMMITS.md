@@ -103,24 +103,34 @@ Two members of the ruleset are not about signing but are on by default because
 rewriting published history costs more than it ever saves: `non_fast_forward`
 (no force push) and `deletion` (no deleting `main`).
 
-### Known interaction: the flake-lock bot
+### The flake-lock bot commits signed, without a bypass actor
 
-`.github/workflows/update-flake-lock.yml` is currently failing, but **not** because
-of this ruleset: its job gets `403` on push because
-`repos/Leoguy77/nixos-config/actions/permissions/workflow` is
-`default_workflow_permissions: read`. That is a permissions problem.
+`.github/workflows/update-flake-lock.yml` runs `nix flake update`, builds **every**
+host discovered from the flake, and only then commits `flake.lock` to `main`.
+Nothing to review — a failing build commits nothing and leaves one red run.
 
-Fixing it with `contents: write` will not be enough. `stefanzweifel/git-auto-commit-action`
-commits **locally** with `git commit` and pushes over HTTPS; GitHub's web-flow
-signature only covers commits created through the API. That commit is unsigned,
-so `required_signatures` will reject it. Pick one:
+The commit is made with the `createCommitOnBranch` GraphQL mutation, **not**
+`git push`, because `required_signatures` would reject an unsigned commit. GitHub
+signs commits made through that mutation itself:
 
-- **Bypass actor** for the workflow — e.g. `RepositoryRole` admin, or the GitHub
-  Actions app — scoped so only that identity skips the rule. Simplest; the daily
-  lock bump is mechanical and reviewed by nobody anyway.
-- **Commit through the API** (`gh api` / `peter-evans/create-pull-request`) so
-  GitHub signs it, then open a PR instead of pushing to `main` — the ruleset only
-  applies to the default branch, so a PR from a bot branch works without a bypass.
+```
+verified: true   reason: "valid"
+```
+
+Two approaches that look like they should work, and do not:
+
+- **`peter-evans/create-pull-request` + squash-merge.** The PR head commit is
+  unsigned, so the required check blocks the merge for a non-admin token:
+  `Pull request #2 is not mergeable: the base branch policy prohibits the merge.`
+  A repo admin can override with `--admin`; the Actions token cannot.
+- **A ruleset bypass for the Actions integration.** Rejected outright on a
+  personal repository: `Actor GitHub Actions integration must be part of the
+  ruleset source or owner organization`. Only an org-owned ruleset can do it.
+
+`gh api graphql` cannot take the input as a variable — `-f` stringifies it and
+`-F` only parses primitives, both yielding `Variable $input of type
+CreateCommitOnBranchInput! was provided invalid value`. The object must be inlined
+into the query string.
 
 ### Don't install the old extension
 
