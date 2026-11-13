@@ -183,9 +183,10 @@ in
         never sets that bit, so Postfix silently falls back to opportunistic
         `tls=may` and a bogus TLSA record is ignored rather than enforced.
 
-        Sets `DNS` to `1.1.1.1`, which must be explicit: left unset, resolved
-        treats the link-provided servers as DNSSEC-unsupported and fails every
-        unsigned zone with "no-signature".
+        Sets `DNS` to the local kresd recursor, with public resolvers only as
+        `FallbackDNS`. `DNS` must be explicit: left unset, resolved uses the
+        link-provided servers and fails every unsigned zone with
+        "no-signature".
       '';
     };
 
@@ -444,12 +445,21 @@ in
     # dnssecValidation option.
     #
     # DNS is set explicitly, which is the load-bearing part. Left unset,
-    # resolved falls back to whatever the link advertises and then reports the
-    # server as DNSSEC-unsupported and fails every unsigned zone with
-    # "no-signature" — which broke `nixos-rebuild --flake github:…` and
-    # system.autoUpgrade outright. 1.1.1.1 returns RRSIGs and NSEC3 proofs when
-    # queried with the DO bit, so strict validation works from it.
-    services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation "1.1.1.1";
+    # resolved falls back to whatever the link advertises and then fails every
+    # unsigned zone with "no-signature" — which broke
+    # `nixos-rebuild --flake github:…` and system.autoUpgrade outright.
+    #
+    # The upstream is kresd (SNM's `localDnsResolver`, 127.0.0.1:53): a full
+    # recursor that walks the tree from the root itself, so no third party sees
+    # this host's query stream and DNSBL lookups arrive from our own address
+    # instead of a public resolver's (Spamhaus refuses those). Falling back to
+    # public resolvers keeps lookups — and autoUpgrade — working if kresd dies;
+    # resolved fails over on its own.
+    services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation [ "127.0.0.1" ];
+    services.resolved.settings.Resolve.FallbackDNS = lib.mkIf cfg.dnssecValidation [
+      "1.1.1.1"
+      "9.9.9.9"
+    ];
     services.resolved.settings.Resolve.DNSSEC = if cfg.dnssecValidation then "true" else "false";
 
     # ── Roundcube ──────────────────────────────────────────────────────────
