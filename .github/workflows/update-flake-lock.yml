@@ -38,7 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
-      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
 
       - run: nix flake update
 
@@ -59,12 +58,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false # one broken host must not hide the rest
+      # Serialized on purpose. Each job runs its own magic-nix-cache daemon
+      # against the same GitHub cache scope; three in parallel makes GitHub
+      # throttle all but the first ("ResourceExhausted: rate limit exceeded",
+      # HTTP 418), so only one host ever uploads and the others rebuild ~230
+      # derivations from scratch on every run. Slower per run, but the cache
+      # actually accumulates.
+      max-parallel: 1
       matrix:
         host: ${{ fromJSON(needs.update.outputs.hosts) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
       - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+        with:
+          # No FlakeHub token in this repo; without this the action logs a
+          # scary ERROR and falls back to the GitHub cache anyway.
+          use-flakehub: disabled
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
