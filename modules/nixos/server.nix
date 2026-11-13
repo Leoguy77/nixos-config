@@ -265,6 +265,29 @@ in
         MaxAuthTries = 3;
         ClientAliveInterval = 60;
         ClientAliveCountMax = 3;
+
+        # Only the two administrative accounts may log in. `postgres` has a
+        # login shell here and would otherwise be a valid target the moment
+        # anyone got a key into its authorized_keys.
+        AllowUsers = [
+          "root"
+          "${cfg.mainUser}"
+        ];
+        # Spelled out rather than left implicit: if any future change enables
+        # password or kbd-interactive auth, this still refuses to accept it.
+        AuthenticationMethods = "publickey";
+
+        # Nothing here consumes ~/.ssh/rc — it is only a hook for arbitrary
+        # commands on login, so the safe default is off.
+        PermitUserRC = false;
+        # Unix-socket forwarding is a lateral-movement primitive (e.g. into
+        # postgres' socket) and no client of this box needs it.
+        AllowStreamLocalForwarding = false;
+
+        # An unauthenticated connection holds a slot for LoginGraceTime; the
+        # stock 2 minutes is a free amplification target for a slow-loris, and
+        # key auth completes immediately.
+        LoginGraceTime = "30s";
       };
     };
 
