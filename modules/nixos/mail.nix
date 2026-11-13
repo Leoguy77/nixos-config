@@ -422,15 +422,6 @@ in
       # Uploads are bounded by Postfix's message_size_limit instead.
       clientMaxBodySize = "0";
 
-      # Response headers belong in the http block, not in each vhost.
-      #
-      # The catch: an `add_header` inside a location makes nginx DROP every
-      # add_header inherited from the enclosing blocks — it does not merge. So
-      # headers here only reach vhosts whose locations define none, and the
-      # roundcube module's `location /` (which sets Cache-Control) would shadow
-      # them. The `always` flag and the per-location repeat below exist for that.
-      commonHttpConfig = secHeaders;
-
       virtualHosts = {
         # :80 for the mail name — exists only to answer HTTP-01. Everything
         # else is redirected, so the vhost is a challenge endpoint, not a site.
@@ -445,15 +436,13 @@ in
           enableACME = true;
           forceSSL = true;
           # Roundcube's module owns the php-fpm pool and the webroot; the vhost
-          # is left to it (see services.roundcube below).
-          #
-          # These repeat the http-level headers at server level because the
-          # module's `location /` sets its own Cache-Control, which makes nginx
-          # drop everything inherited. Server level is reached by the PHP
-          # location (which sets no add_header), and that is the location that
-          # actually renders the login page. `mkAfter` rather than `=` because
-          # the module already assigns extraConfig and `lines` concatenates.
-          extraConfig = lib.mkAfter secHeaders;
+          # is left to it (see services.roundcube below), including its
+          # `location /`, which sets Cache-Control and therefore drops every
+          # inherited add_header. Headers are added per location below instead
+          # — putting them at server level is rejected by nginx's config
+          # validator (gixy: `add_header_redefinition`).
+          locations."/".extraConfig = lib.mkAfter secHeaders;
+          locations."~* \\.php(/|$)".extraConfig = lib.mkAfter secHeaders;
         };
       }
       # Each autoconfig name gets its own vhost and certificate, served from one
