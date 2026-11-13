@@ -1,23 +1,103 @@
-# ponytail: daily nix flake update via GitHub Action, Surface auto-upgrade picks it up
+# ponytail: daily nix flake update, auto-merged only if every host still builds.
+#
+# The gate is job order, not GitHub required checks: `required_status_checks` on
+# the branch would also force every hand-made push through a PR, and this workflow
+# can already refuse to publish. A failing build opens no PR at all — you get one
+# red workflow run, which is the only thing worth looking at.
+#
+# The PR is not for reading. It exists because main requires signed commits and
+# `nix flake update` produces an unsigned one; GitHub signs the squash-merge it
+# creates itself (verified: verification.reason == "valid"). A side branch is
+# unaffected by that rule, so no bypass actor is needed.
+#
+# Actions are pinned to commit SHAs: a mutable tag on a third-party action is
+# arbitrary code running with your token on every push.
 name: update-flake-lock
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # daily at 06:00 UTC
-  workflow_dispatch:       # manual trigger
+    - cron: "0 6 * * *" # daily at 06:00 UTC
+  workflow_dispatch: # manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-flake-lock
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    outputs:
+      hosts: ${{ steps.list.outputs.hosts }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
 
       - run: nix flake update
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      # Discovered from the flake, never listed here: a new host in hosts/<name>/
+      # joins the build on its own.
+      - id: list
+        run: echo "hosts=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+
+      # Hand the updated lock to the build job; it is not committed yet.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          commit_message: "chore: update flake.lock"
-          file_pattern: flake.lock
+          name: flake-lock
+          path: flake.lock
+          retention-days: 1
+
+  build:
+    needs: update
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one broken host must not hide the rest
+      matrix:
+        host: ${{ fromJSON(needs.update.outputs.hosts) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: flake-lock
+
+      - run: nix build --no-link --print-out-paths ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel"
+
+  publish:
+    needs: [update, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: flake-lock
+
+      # Nothing to do most days: nix flake update frequently changes nothing.
+      - id: diff
+        run: git diff --quiet flake.lock || echo "changed=1" >> "$GITHUB_OUTPUT"
+
+      - if: steps.diff.outputs.changed
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          branch: flake-lock-update
+          delete-branch: true
+          title: "chore(deps): update flake.lock"
+          commit-message: "chore(deps): update flake.lock"
+          body: |
+            Automated `nix flake update`. Every host was built before this PR was
+            opened, so merging it is safe.
+          labels: dependencies
+
+      # Squash-merge immediately. The PR exists for the signed merge commit and
+      # for the history; nobody needs to read it, which is the point.
+      - if: steps.diff.outputs.changed
+        run: gh pr merge flake-lock-update --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ github.token }}
