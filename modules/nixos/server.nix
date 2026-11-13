@@ -311,6 +311,10 @@ in
         "127.0.0.1/8"
         "::1"
       ];
+      # Ban history must outlive the longest ban, or a restart forgets who is
+      # banned and an escalated offender starts from zero. The stock 1d is
+      # shorter than `maxtime` below.
+      daemonSettings.DEFAULT.dbpurgeage = "30d";
       jails.sshd.settings = {
         enabled = true;
         backend = "systemd";
