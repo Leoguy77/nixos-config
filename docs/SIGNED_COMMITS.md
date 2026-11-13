@@ -82,16 +82,45 @@ commit already exists and a hook can no longer stop it.
 
 `git commit --no-verify` skips every hook in this repository, including this one.
 That is git's own escape hatch and **cannot be closed from inside a repo** — a
-hook cannot veto its own suppression. Two things cover the gap:
+hook cannot veto its own suppression.
 
-1. **GitHub branch protection** — Settings → Branches → `main` → *Require signed
-   commits*. This also catches commits made from a machine that never entered the
-   devShell, which a hook never sees.
-2. **Review before merge** — `git log --show-signature`, once
-   `allowedSignersFile` is configured (below).
+**It is now closed server-side.** A repository ruleset named `main` requires
+verified signatures on the default branch:
 
-Neither is set up yet. Until branch protection is on, this hook is a guardrail,
-not a guarantee.
+```
+remote: - Commits must have verified signatures.
+remote:   Found 1 violation: ef188be8cd2444790524ba9f7f3ee29e5147b0da
+ ! [remote rejected] HEAD -> main (push declined due to repository rule violations)
+```
+
+That also catches commits made from a machine that never entered the devShell,
+which a hook never sees. The policy is versioned at
+`.github/rulesets/main.json` and applied with
+`nix shell nixpkgs#gh -c scripts/apply-rulesets.sh` — the file is the source of
+truth, but **committing it does not apply it**; only the script does.
+
+Two members of the ruleset are not about signing but are on by default because
+rewriting published history costs more than it ever saves: `non_fast_forward`
+(no force push) and `deletion` (no deleting `main`).
+
+### Known interaction: the flake-lock bot
+
+`.github/workflows/update-flake-lock.yml` is currently failing, but **not** because
+of this ruleset: its job gets `403` on push because
+`repos/Leoguy77/nixos-config/actions/permissions/workflow` is
+`default_workflow_permissions: read`. That is a permissions problem.
+
+Fixing it with `contents: write` will not be enough. `stefanzweifel/git-auto-commit-action`
+commits **locally** with `git commit` and pushes over HTTPS; GitHub's web-flow
+signature only covers commits created through the API. That commit is unsigned,
+so `required_signatures` will reject it. Pick one:
+
+- **Bypass actor** for the workflow — e.g. `RepositoryRole` admin, or the GitHub
+  Actions app — scoped so only that identity skips the rule. Simplest; the daily
+  lock bump is mechanical and reviewed by nobody anyway.
+- **Commit through the API** (`gh api` / `peter-evans/create-pull-request`) so
+  GitHub signs it, then open a PR instead of pushing to `main` — the ruleset only
+  applies to the default branch, so a PR from a bot branch works without a bypass.
 
 ### Don't install the old extension
 
