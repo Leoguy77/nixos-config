@@ -86,15 +86,28 @@ jobs:
           name: flake-lock
 
       # Restore before building so the slow non-upstream paths are already here.
-      # Key is the lock hash, so a new lock makes a new entry; the prefix restore
-      # still pulls the previous run's store as a base.
+      #
+      # The key is the lock hash, so there is exactly ONE entry and it is only
+      # rewritten when the lock moves. That is deliberate, but it means the very
+      # first save is the only save: the action logs `Not collecting garbage. /
+      # Not saving a new cache.` on every later run (its own docs: "this input
+      # has no effect if primary-key hit occurs when starting to save"). So the
+      # GC below must not eat what we want cached, or it is eaten permanently.
+      #
+      # It did. `nix build --no-link` creates no GC roots, so the 3G cap made
+      # `nix store gc` delete the build results in the same step that was about
+      # to tar them up: the frozen entry held pi-1.5.2 only as a .drv, and every
+      # later run "hit the cache" and rebuilt it anyway. The build step now
+      # passes --out-link, which roots the toplevels for the rest of the job, and
+      # the cap is above the ~5.5 GiB all three closures need.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
-          # cap what gets saved: stock nixpkgs is a fast re-download, not worth
-          # spending the repo's 10 GB cache budget on
-          gc-max-store-size-linux: 3G
+          # stock nixpkgs paths are a fast re-download from cache.nixos.org; only
+          # the non-upstream ones (pi-1.5.2 188 MiB, formatelf-0.2.2 48 MiB) are
+          # worth the repo's 10 GB cache budget
+          gc-max-store-size-linux: 6G
           purge: true
           purge-prefixes: nix-${{ runner.os }}-
           purge-last-accessed: P7D
@@ -107,7 +120,10 @@ jobs:
           failed=''
           for host in $(printf '%s' "$HOSTS" | tr -d '[]" ' | tr ',' ' '); do
             echo "::group::build $host"
-            if nix build --no-link --print-out-paths \
+            # --out-link, not --no-link: the result symlink is a GC root, which is
+            # what stops the cache action's post-job gc from deleting the output
+            # before it is tarred. See the cache-nix-action comment above.
+            if nix build --out-link "/tmp/result-$host" --print-out-paths \
                  ".#nixosConfigurations.$host.config.system.build.toplevel"; then
               echo "$host OK"
             else
