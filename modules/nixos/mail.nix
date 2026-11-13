@@ -182,6 +182,9 @@ in
         data was validated (the AD bit). A resolver that does not validate
         never sets that bit, so Postfix silently falls back to opportunistic
         `tls=may` and a bogus TLSA record is ignored rather than enforced.
+
+        Sets `DNSSEC` to `allow-downgrade` rather than `true`: see the comment
+        at the assignment for why strict mode breaks unsigned zones here.
       '';
     };
 
@@ -435,12 +438,18 @@ in
     # meaningful, since the smtp client retries once the domain resolves.
     services.postfix.submissionsOptions.smtpd_recipient_restrictions = lib.mkForce "permit_sasl_authenticated,reject";
 
-    # DANE needs the resolver to validate, not just resolve. See the
-    # dnssecValidation option for why: Postfix trusts only the AD bit.
-    # plainTextDNSSEC rather than a stub-only mode keeps ordinary lookups
-    # working if a domain is unsigned — only *bogus* answers fail, which is
-    # exactly the distinction RFC 7672 needs.
-    services.resolved.settings.Resolve.DNSSEC = lib.mkIf cfg.dnssecValidation "true";
+    # DANE needs the resolver to validate, not just resolve: Postfix's
+    # `smtp_dns_support_level = dnssec` trusts only the AD bit. See the
+    # dnssecValidation option.
+    #
+    # `allow-downgrade`, NOT `true`. Strict `DNSSEC=true` makes resolved build
+    # its own chain of trust, and behind an upstream that also validates it
+    # fails with "no-signature" on *every* zone — including unsigned ones like
+    # github.com, which broke `nixos-rebuild --flake github:…` and
+    # system.autoUpgrade outright. allow-downgrade takes the upstream's verdict
+    # when it gives one and still rejects a zone that is signed but bogus,
+    # which is the property RFC 7672 actually needs.
+    services.resolved.settings.Resolve.DNSSEC = lib.mkIf cfg.dnssecValidation "allow-downgrade";
 
     # ── Roundcube ──────────────────────────────────────────────────────────
     services.roundcube = {
