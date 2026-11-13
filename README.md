@@ -42,9 +42,9 @@ modules/disko/         # disk layouts for nixos-anywhere
 modules/iso/           # per-host installer ISO
 lib/default.nix        # scanPaths, publishDns
 vars/default.nix       # username, email, networking, signing keys
-secrets/               # sops-encrypted secrets (committed)
+secrets/               # sops-encrypted secrets (committed) + README
 scripts/deploy.sh      # install/upgrade any host
-docs/                  # module reference, secrets guide, archive
+docs/                  # module reference, commit signing, archive
 ```
 
 Hosts are discovered by iterating `hosts/*/default.nix`, so adding a host means
@@ -69,13 +69,13 @@ from this repo.
 ## Secrets
 
 sops + sops-nix, decrypted by the machine's SSH host key (system) and a personal
-PGP key (user). See [docs/SECRETS.md](./docs/SECRETS.md) — including the host-key
+PGP key (user). See [secrets/README.md](./secrets/README.md) — including the host-key
 provisioning flow that makes an encrypted-root server possible.
 
 ## Documentation
 
 - [docs/MODULES.md](./docs/MODULES.md) — module reference, options, how to add a host or module
-- [docs/SECRETS.md](./docs/SECRETS.md) — sops setup and key rotation
+- [secrets/README.md](./secrets/README.md) — sops setup and key rotation
 - [docs/SIGNED_COMMITS.md](./docs/SIGNED_COMMITS.md) — how commit signing is set up, and what is not enforced
 - [hosts/mail/README.md](./hosts/mail/README.md) — the mail server runbook
 - [docs/archive/](./docs/archive/) — historical notes, kept for context only

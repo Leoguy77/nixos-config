@@ -6,6 +6,8 @@
 # The sops files themselves stay tracked.
 /secrets/*
 !/secrets/*.sops.yaml
+# ...except the guide that explains it.
+!/secrets/README.md
 hosts/*/secrets/
 
 # Editor

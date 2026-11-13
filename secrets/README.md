@@ -10,11 +10,15 @@ Migrated from agenix.
 
 ```
 secrets/
+├── README.md                # this file
 └── secrets.sops.yaml        # encrypted secrets (committed)
 .sops.yaml                   # creation rules: host-age recipient + your PGP fingerprint
 modules/nixos/sops.nix       # system secrets  -> host ssh key
 modules/home/sops.nix        # home secrets    -> ~/.ssh/GPG (ssh-to-pgp)
 ```
+
+The directory is gitignored except for `*.sops.yaml` and this file: bootstrap
+authkeys minted at deploy time land here too and must never be committed.
 
 | Secret | Consumed by | Identity | Decrypted to |
 |---|---|---|---|
