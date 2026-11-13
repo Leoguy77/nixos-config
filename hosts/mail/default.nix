@@ -104,6 +104,19 @@ in
   # A hash is still a credential, but one that cannot be replayed.
   modules.mail.accounts.leon.hashedPasswordFile = config.sops.secrets.leon_password_hash.path;
 
+  # Aggregate DMARC reports (`rua` in hosts/mail/dns.nix) go to postmaster, which
+  # aliases to leon. File them separately so they don't bury real mail.
+  # Matches `x-original-to` because Postfix rewrites the envelope during alias
+  # expansion; matching on `to` would break if a reporter omitted that header.
+  modules.mail.accounts.leon.sieveScript = ''
+    require ["fileinto"];
+
+    if address :is ["to", "x-original-to"] "postmaster@lsinfra.de" {
+      fileinto "DMARC";
+      stop;
+    }
+  '';
+
   # ── DNS ──────────────────────────────────────────────────────────────────
   # This host publishes the lsinfra.de zone. Records themselves live in
   # ./dns.nix; the registry is open to every module in the tree via

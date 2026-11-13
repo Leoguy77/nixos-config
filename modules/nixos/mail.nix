@@ -215,6 +215,39 @@ in
               description = "Extra addresses delivered to this account.";
             };
 
+            sieveScript = lib.mkOption {
+              type = lib.types.nullOr lib.types.lines;
+              default = null;
+              example = ''
+                require ["fileinto"];
+
+                if address :is ["to", "x-original-to"] "dmarc@example.com" {
+                  fileinto "DMARC";
+                  stop;
+                }
+              '';
+              description = ''
+                Per-account Sieve script, installed as the account's DEFAULT
+                script. It occupies the `default` slot, so the webmail's
+                ManageSieve pane cannot see or edit it: the Nix file is the
+                source of truth and a UI edit would be silently replaced on the
+                next rebuild.
+
+                Two constraints worth knowing:
+
+                - The spam filter runs FIRST (`sieve_script spamfilter` is type
+                  `after`), so anything rspamd flagged is already filed.
+                - Aliases are expanded by Postfix before delivery, so `to` still
+                  holds the alias but the envelope no longer does. Match on
+                  `x-original-to` for alias-routed mail; it survives the
+                  rewrite, while `delivered-to` does not.
+
+                Do not use `fileinto :create`: SNM enables only the `fileinto`
+                extension, not `mailbox`, so `:create` fails to compile. Folders
+                are created automatically by `lda_mailbox_autocreate`.
+              '';
+            };
+
             quota = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
@@ -296,6 +329,9 @@ in
           }
           // lib.optionalAttrs (account.passwordFile != null) {
             inherit (account) passwordFile;
+          }
+          // lib.optionalAttrs (account.sieveScript != null) {
+            inherit (account) sieveScript;
           }
         )
       ) cfg.accounts;
