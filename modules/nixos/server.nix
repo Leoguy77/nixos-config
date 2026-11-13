@@ -256,7 +256,14 @@ in
       settings = {
         PasswordAuthentication = false;
         KbdInteractiveAuthentication = false;
-        PermitRootLogin = "prohibit-password";
+        # No root login in stage 2. It granted nothing: the admin account is in
+        # `wheel` with passwordless sudo, so root-by-key was a second door to
+        # the same room — one that leaves no sudo record of what was run and
+        # adds an always-existent uid 0 to the username surface.
+        #
+        # The initrd sshd is unaffected: boot.initrd.network.ssh builds its own
+        # sshd_config and never inherits this (see the `extraConfig` there).
+        PermitRootLogin = "no";
         X11Forwarding = false;
         AllowAgentForwarding = false;
         # Nothing on a mail server needs to tunnel through sshd — Tailscale
@@ -269,13 +276,10 @@ in
         ClientAliveInterval = 60;
         ClientAliveCountMax = 3;
 
-        # Only the two administrative accounts may log in. `postgres` has a
-        # login shell here and would otherwise be a valid target the moment
-        # anyone got a key into its authorized_keys.
-        AllowUsers = [
-          "root"
-          "${cfg.mainUser}"
-        ];
+        # Only the administrative account may log in. `postgres` has a login
+        # shell here and would otherwise be a valid target the moment anyone
+        # got a key into its authorized_keys.
+        AllowUsers = [ "${cfg.mainUser}" ];
         # Spelled out rather than left implicit: if any future change enables
         # password or kbd-interactive auth, this still refuses to accept it.
         AuthenticationMethods = "publickey";

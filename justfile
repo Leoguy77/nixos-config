@@ -57,7 +57,9 @@ check:
     nix flake check
 
 # Summarise the DMARC aggregate reports sitting in the mail box's .DMARC folder.
-dmarc target="root@91.132.147.216" folder="/var/vmail/lsinfra.de/leon/mail/.DMARC":
+dmarc target="leoguy77@91.132.147.216" folder="/var/vmail/lsinfra.de/leon/mail/.DMARC":
     #!/usr/bin/env bash
     set -euo pipefail
-    ssh {{target}} "nix shell nixpkgs#python3 -c python3 - {{folder}}" < scripts/dmarc-report.py
+    # sudo: /var/vmail is 0700 virtualMail. The account is in wheel with
+    # passwordless sudo, so this needs no prompt.
+    ssh {{target}} "sudo nix shell nixpkgs#python3 -c python3 - {{folder}}" < scripts/dmarc-report.py

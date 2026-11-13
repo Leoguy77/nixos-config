@@ -31,6 +31,11 @@
 #   scripts/deploy.sh mail root@91.132.147.216 /dev/vda
 #   VM_TEST=1 scripts/deploy.sh mail root@91.132.147.216 /dev/vda
 #
+# `root@` because this runs from the installer ISO, where root is the only
+# account. Re-installing over an existing NixOS system takes the admin user
+# instead (nixos-anywhere escalates with sudo):
+#   scripts/deploy.sh mail leoguy77@91.132.147.216 /dev/vda
+#
 # Assumptions, all enforced below rather than guessed:
 #   - hosts/<host>/default.nix exists and imports a disko layout
 #   - hosts/<host>/hardware-configuration.nix is committed and does NOT contain

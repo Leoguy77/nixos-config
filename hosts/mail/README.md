@@ -306,14 +306,14 @@ GitHub rebuild also removes the bootstrap key from the initrd image incidentally
 Manual rebuild from the workstation:
 
 ```bash
-nixos-rebuild switch --flake .#mail --target-host root@91.132.147.216 --use-remote-sudo
+nixos-rebuild switch --flake .#mail --target-host leoguy77@91.132.147.216 --use-remote-sudo
 ```
 
 Once stage 2 is up, the normal system joins as **`mail`** (separate node, own
 state on the encrypted root):
 
 ```bash
-ssh root@91.132.147.216 'tailscale up --ssh --accept-dns=false'
+ssh leoguy77@91.132.147.216 'sudo tailscale up --ssh --accept-dns=false'
 ```
 
 ## First-run configuration
