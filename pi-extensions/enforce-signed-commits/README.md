@@ -1,5 +1,14 @@
 # Enforce Signed Commits Extension
 
+> **Status: not installed, and it should stay that way.**
+>
+> Signing is handled declaratively by `programs.git` in
+> [`modules/home/base/core.nix`](../../modules/home/base/core.nix); see
+> [`docs/SIGNED_COMMITS.md`](../../docs/SIGNED_COMMITS.md). This extension is
+> kept for reference only: `install.sh` overwrites `.git/hooks/pre-commit`,
+> which this repo generates from `.pre-commit-config.yaml` (deadnix, nixfmt,
+> statix). Installing it would replace the linters, not add to them.
+
 This extension **prevents unsigned commits** by enforcing Git commit signing with your 1Password SSH agent.
 
 ## 🔒 What It Does
@@ -100,4 +109,4 @@ Once installed, the extension works automatically:
 
 - [Git Signed Commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
 - [1Password SSH Agent](https://developer.1password.com/docs/ssh/agent/)
-- [NixOS Git Configuration](../../modules/home/core.nix)
+- [Git configuration in this repo](../../modules/home/base/core.nix)

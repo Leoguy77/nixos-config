@@ -209,7 +209,7 @@
 
           # Secrets: deploy.sh derives the initrd bootstrap key from sops when it
           # is on PATH. ssh-to-pgp + gnupg are how you derive the PGP key from
-          # ~/.ssh/GPG so the CLI can open secrets.sops.yaml (SECRETS.md).
+          # ~/.ssh/GPG so the CLI can open secrets.sops.yaml (docs/SECRETS.md).
           sops
           ssh-to-pgp
           gnupg

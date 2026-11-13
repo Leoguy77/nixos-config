@@ -114,17 +114,28 @@ nix build .#installerIso-mail
 3. From kirito, run the normal deploy (inside the dev shell — it needs `sops`):
 
    ```bash
-   nix develop .# --command scripts/deploy.sh mail root@91.132.147.216 /dev/vda
+   SKIP_DISKO_DEPS=1 nix develop .# --command \
+     scripts/deploy.sh mail root@91.132.147.216 /dev/vda
    ```
+
+   `SKIP_DISKO_DEPS=1` is what makes the ISO route fit: it uploads only the disko
+   *script* (19 KiB) instead of its tooling (446 MiB), which on a live ISO lands
+   in the tmpfs at `/nix/.rw-store` — i.e. in RAM. Only safe because this ISO
+   bakes those tools into sshd's `path`.
 
 4. Unmount the DVD and reboot when it is done.
 
-That image is `modules/iso/installer.nix`: `installation-cd-minimal` plus static
-networking for `eth0` in both the initrd and stage 2, NetworkManager forced off
-(it would DHCP eth0 and cut the SSH session mid-copy), root login by key only,
-and `systemd.services.sshd.path` carrying every tool disko needs. The last point
-matters: it lets `--no-disko-deps` work, so the closure copied into RAM is
+That image is `modules/iso/installer.nix`: `installation-cd-minimal` plus a
+static address in both the initrd and stage 2, NetworkManager forced off (it
+would DHCP the interface and cut the SSH session mid-copy), root login by key
+only, and `systemd.services.sshd.path` carrying every tool disko needs. The last
+point matters: it lets `--no-disko-deps` work, so the closure copied into RAM is
 19 KiB instead of 446 MiB.
+
+The interface is matched by `matchConfig.Type = "ether"`, not by name — the NIC
+is `ens3` on this box but `eth0`/`enp0s3` elsewhere, and a name match leaves the
+installer unreachable. The gateway also needs `GatewayOnLink = true`, because
+netcup's `91.132.144.1` sits outside the `/22`.
 
 <details>
 <summary>Fallback: stock ISO + VNC console</summary>
@@ -138,11 +149,11 @@ session where you set the IP and drop the key by hand.
 4. On the live system, get it reachable over SSH:
 
    ```bash
-   # static IP, matching hosts/mail/default.nix exactly (interface is eth0)
-   sudo ip addr add 91.132.147.216/22 dev eth0
-   sudo ip -6 addr add 2a03:4000:37:c32:6860:64ff:fe3b:ddb0/64 dev eth0
-   sudo ip route add default via 91.132.144.1 dev eth0 onlink
-   sudo ip -6 route add default via fe80::1 dev eth0
+   # static IP, matching hosts/mail/default.nix exactly (NIC is ens3 here)
+   sudo ip addr add 91.132.147.216/22 dev ens3
+   sudo ip -6 addr add 2a03:4000:37:c32:6860:64ff:fe3b:ddb0/64 dev ens3
+   sudo ip route add default via 91.132.144.1 dev ens3 onlink
+   sudo ip -6 route add default via fe80::1 dev ens3
    sudo mkdir -p /root/.ssh && sudo tee /root/.ssh/authorized_keys <<'EOF'
    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github
    EOF
@@ -158,7 +169,6 @@ session where you set the IP and drop the key by hand.
 
 `nixos-anywhere` still needs `tar`, `cpio` and `setsid` on the target even when
 it skips kexec; both ISOs ship all three (verified).
-
 ### The normal route (only for hosts with ≥1.5 GB RAM)
 
 ```bash
@@ -175,20 +185,20 @@ nix develop .# --command scripts/deploy.sh mail root@91.132.147.216 /dev/vda
 
 `scripts/deploy.sh` is the general installer for every host of this flake
 (`scripts/deploy.sh <host> <user@address> [disk]`); for this one it wraps
-`nixos-anywhere` with `--flake path:$PWD#mail --target-host root@91.132.147.216
---disk main /dev/vda --disk-encryption-keys /tmp/luks-password <passfile>`,
-plus the host-key minting and `--extra-files` staging described above.
+`nixos-anywhere` with `--flake path:$PWD#mail --target-host <user>@91.132.147.216
+--disk-encryption-keys /tmp/luks-password <passfile> --extra-files <staged dir>`,
+plus the host-key minting described below.
 
 It uses `path:` rather than the default `git+file:` because git flakes copy only
-tracked files — the gitignored initrd authkey would otherwise be missing from
-the build.
+tracked files — the staged host key and initrd authkey would otherwise be
+missing from the build.
 
-The disk layout is **imported by the host** (`inputs.disko.nixosModules.disko` +
-`modules/disko/luks-btrfs-server.nix`), which is why `--disk main` can override
-`disko.devices.disk.main.device`. There is no `--disko` flag. No
-`--generate-hardware-config` either: the hardware file is committed and kept
-free of `fileSystems`, which disko now owns — the script refuses to run if it
-finds `fileSystems` there.
+The disk device is **not** passed to nixos-anywhere: 1.x dropped `--disk main
+<dev>`, so `$DISK` is only asserted against `disko.devices.disk.main.device` and
+the layout in `modules/disko/luks-btrfs-server.nix` is authoritative. There is no
+`--disko` flag and no `--generate-hardware-config` either: the hardware file is
+committed and kept free of `fileSystems`, which disko owns — the script refuses
+to run if it finds `fileSystems` there.
 
 ## Initrd SSH: tailnet only, never public
 

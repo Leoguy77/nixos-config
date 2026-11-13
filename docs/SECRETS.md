@@ -18,16 +18,28 @@ modules/home/sops.nix        # home secrets    -> ~/.ssh/GPG (ssh-to-pgp)
 
 | Secret | Consumed by | Identity | Decrypted to |
 |---|---|---|---|
-| `wg0_private_key` | flipdot WireGuard (NM) | host ssh key | `/run/secrets/wg0_private_key` |
+| `wg0_private_key` | flipdot WireGuard (NM), only when `modules.wireguard.enable` | host ssh key | `/run/secrets/wg0_private_key` |
 | `pi_mcp_json` | pi (`~/.pi/agent/mcp.json`) | `~/.ssh/GPG` | `~/.pi/agent/mcp.json` |
 | `tailscale_oauth_client_id` / `_secret` | `scripts/deploy.sh` (host-side only) | `~/.ssh/GPG` | never — read by deploy.sh |
 | `cloudflare_dns_token` | `modules/nixos/dns.nix` (`dns-sync.service`) | host ssh key | `/run/secrets/cloudflare_dns_token` |
+| `host1_ipv4` / `host1_ipv6` | `hosts/asuna/dns.nix` (proxied records) | host ssh key | never — passed to dnscontrol with `-v` |
+| `dkim_mail_private_key` | `mailserver.dkim` (`rspamd`) | host ssh key | `/run/secrets/dkim_mail_private_key` |
+| `leon_password_hash` | `mailserver.loginAccounts` | host ssh key | `/run/secrets/leon_password_hash` |
 
-The Cloudflare token needs `Zone.DNS:Edit` on `lsinfra.de` only — not `Zone:Read`,
-not a global API key. Rspamd-style scoping: if it leaks it can rewrite one zone.
-Until a real token is in place the key holds `""` so the build manifest validates;
-`dns-sync` then fails at runtime with Cloudflare's auth error, which is visible in
-`journalctl -u dns-sync` but breaks nothing else.
+The repo is public, so any address that would reveal an origin lives here rather
+than in a `.nix` file. `host1_*` are the one exception to "secrets are for
+credentials": they are ordinary values that happen to be sensitive, and
+`modules.dns.push.variables` is what injects them at push time.
+
+The Cloudflare token needs exactly two permissions, both scoped to
+`Zone → Include → Specific zone → lsinfra.de`:
+
+- `Zone → Zone → Read` — dnscontrol's first call is `GET /client/v4/zones`
+- `Zone → DNS → Edit` — list/create/update/delete of records
+
+It is deliberately **not** IP-locked (a push from the workstation during
+`dnscontrol preview` must work too) and it is not a global API key, so a leak can
+rewrite one zone and nothing else.
 
 The tailscale pair is not a NixOS secret: no host module consumes it. It exists
 so `deploy.sh` can mint a short-lived initrd auth key instead of keeping a
@@ -54,7 +66,7 @@ sops cannot read keys from the SSH agent — it needs the private key as a file.
 | Recipient | Read by | Covers |
 |---|---|---|
 | `age1pr3…` (kirito) | kirito's ssh key, converted by sops-nix | boot, `nixos-rebuild`, autoUpgrade |
-| `age1m0d…` (mail) | mail's ssh key, converted by sops-nix | the same, on that box |
+| `age14x2…` (mail) | mail's ssh key, converted by sops-nix | the same, on that box |
 | PGP `5C0B…` | `~/.ssh/GPG` | home-manager secrets, and the CLI |
 
 A machine's age recipient is derived from its SSH host key
