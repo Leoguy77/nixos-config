@@ -258,6 +258,77 @@
           # Lint Nix files
           statix.enable = true;
 
+          # Refuse to create an unsigned commit. Runs at commit-msg because that
+          # is the last stage before git writes the object: by post-commit the
+          # commit already exists and a hook can no longer stop it.
+          #
+          # Two checks, because either one alone is bypassable:
+          #   - commit.gpgsign must be true. This catches `git -c
+          #     commit.gpgsign=false commit`, since -c changes what the hook reads.
+          #   - the command line must not carry --no-gpg-sign, which leaves the
+          #     config saying `true` while git skips signing anyway (verified).
+          #     That flag is only visible in argv, so one of us has to walk the
+          #     process chain: git -> hook template -> pre-commit -> this script.
+          #
+          # `git commit --no-verify` still skips every hook in this file. That is
+          # git's own escape hatch and cannot be closed from inside a repository;
+          # the airtight check is GitHub branch protection (Require signed
+          # commits), which also catches a push from a machine without this hook.
+          signed-commits = {
+            enable = true;
+            name = "signed commits only";
+            stages = [ "commit-msg" ];
+            pass_filenames = false;
+            always_run = true;
+            entry = toString (
+              pkgs.writeShellScript "require-signed-commit" ''
+                set -u
+
+                fail() {
+                  printf '\n\033[31m\u2717 unsigned commits are not allowed\033[0m\n  %s\n\n' "$1" >&2
+                  exit 1
+                }
+
+                [ "$(git config --get commit.gpgsign)" = "true" ] \
+                  || fail "signing is off for this commit. Re-enable it with: git config commit.gpgsign true"
+
+                # Walk ancestors looking for the `git` process that spawned us
+                # and inspect only ITS argv. Field 4 of /proc/PID/stat is the
+                # ppid; `stat -c %P` does NOT work on procfs and silently yields
+                # empty, which would stop the walk after one step.
+                #
+                # Only git's own argv is checked. Matching the whole chain would
+                # be wrong: a shell running a script that merely mentions the
+                # flag has it inside one big `bash -c …` argument, so every
+                # innocent commit from such a shell would be refused.
+                pid=$PPID
+                for _ in $(seq 1 10); do
+                  [ -r "/proc/$pid/stat" ] || break
+                  # comm (field 2) may contain spaces and parens, so strip up to
+                  # the LAST ') ' before splitting the remaining fields.
+                  rest=$(< "/proc/$pid/stat")
+                  rest=''${rest##*') '}
+                  set -- $rest
+                  ppid=''${2:-1}
+
+                  argv0=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | head -n1)
+                  if [ "''${argv0##*/}" = git ]; then
+                    # NUL-separated argv -> single space-padded line, so the
+                    # match is one whole argument and not a substring.
+                    args=" $(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null) "
+                    case "$args" in
+                      *" --no-gpg-sign "*) fail "git commit --no-gpg-sign is blocked. Drop the flag." ;;
+                    esac
+                    break
+                  fi
+
+                  [ "$ppid" -gt 1 ] || break
+                  pid=$ppid
+                done
+              ''
+            );
+          };
+
           # Spell checker (optional)
           # typos = {
           #   enable = true;
