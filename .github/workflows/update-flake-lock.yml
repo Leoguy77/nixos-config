@@ -1,14 +1,18 @@
-# ponytail: daily nix flake update, auto-merged only if every host still builds.
+# ponytail: daily nix flake update, committed directly once every host builds.
 #
-# The gate is job order, not GitHub required checks: `required_status_checks` on
-# the branch would also force every hand-made push through a PR, and this workflow
-# can already refuse to publish. A failing build opens no PR at all — you get one
-# red workflow run, which is the only thing worth looking at.
+# The gate is job order, not a GitHub required check: `required_status_checks` on
+# the branch would force every hand-made push through a PR too. A failing build
+# commits nothing — you get one red workflow run, which is the only thing worth
+# looking at. There is no PR to read, by design.
 #
-# The PR is not for reading. It exists because main requires signed commits and
-# `nix flake update` produces an unsigned one; GitHub signs the squash-merge it
-# creates itself (verified: verification.reason == "valid"). A side branch is
-# unaffected by that rule, so no bypass actor is needed.
+# The commit is made with the `createCommitOnBranch` GraphQL mutation rather than
+# `git push`, because main requires verified signatures and a commit carrying the
+# Actions token is otherwise unsigned. GitHub signs commits made through that
+# mutation itself (proven: verification.reason == "valid"). The alternative — a
+# ruleset bypass for the Actions integration — is not allowed on personal repos
+# ("Actor GitHub Actions integration must be part of the ruleset source or owner
+# organization"), and a PR + squash-merge cannot work either: the PR head is
+# unsigned, so the required check blocks the merge for a non-admin token.
 #
 # Actions are pinned to commit SHAs: a mutable tag on a third-party action is
 # arbitrary code running with your token on every push.
@@ -21,7 +25,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: update-flake-lock
@@ -79,25 +82,42 @@ jobs:
         with:
           name: flake-lock
 
-      # Nothing to do most days: nix flake update frequently changes nothing.
+      # Most days nix flake update changes nothing; exit quietly.
       - id: diff
         run: git diff --quiet flake.lock || echo "changed=1" >> "$GITHUB_OUTPUT"
 
       - if: steps.diff.outputs.changed
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
-        with:
-          branch: flake-lock-update
-          delete-branch: true
-          title: "chore(deps): update flake.lock"
-          commit-message: "chore(deps): update flake.lock"
-          body: |
-            Automated `nix flake update`. Every host was built before this PR was
-            opened, so merging it is safe.
-          labels: dependencies
-
-      # Squash-merge immediately. The PR exists for the signed merge commit and
-      # for the history; nobody needs to read it, which is the point.
-      - if: steps.diff.outputs.changed
-        run: gh pr merge flake-lock-update --squash --delete-branch
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Quoted heredoc: `$input` is a GraphQL variable, not shell expansion.
+          read -r -d '' query <<'GQL' || true
+          mutation($input: CreateCommitOnBranchInput!) {
+            createCommitOnBranch(input: $input) { commit { oid } }
+          }
+          GQL
+
+          # expectedHeadOid makes this a compare-and-swap: if anything was pushed
+          # to main while the builds ran, the mutation fails instead of silently
+          # overwriting it. Retried once against the new head.
+          contents=$(base64 -w0 flake.lock)
+          for attempt in 1 2; do
+            head=$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq .object.sha)
+            payload=$(printf '{
+              "branch": { "repositoryNameWithOwner": "%s", "branchName": "main" },
+              "message": { "headline": "chore(deps): update flake.lock" },
+              "fileChanges": { "additions": [ { "path": "flake.lock", "contents": "%s" } ] },
+              "expectedHeadOid": "%s"
+            }' "${{ github.repository }}" "$contents" "$head")
+
+            if gh api graphql -f query="$query" -f input="$payload" >/dev/null; then
+              echo "committed flake.lock on main"
+              exit 0
+            fi
+            echo "attempt $attempt failed, retrying against the new head" >&2
+            sleep 5
+          done
+          echo "::error::could not commit the updated flake.lock" >&2
+          exit 1
