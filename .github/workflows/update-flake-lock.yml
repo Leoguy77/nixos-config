@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # cache-nix-action purges old entries via the Actions API
 
 concurrency:
   group: update-flake-lock
@@ -64,13 +65,17 @@ jobs:
     # 2nd and 3rd host reuse what the 1st fetched (run 43422438336 pulled 5.5 GiB
     # once, then 176 MiB, and went 15m29s -> 6m29s).
     #
-    # No magic-nix-cache: it pushed one GitHub cache entry per store path, and a
-    # NixOS closure is thousands of tiny paths, so it tripped the cache API's
-    # rate limit and disabled itself. Measured over a full green run: 0 paths
-    # uploaded, 278 throttles, 'disabling binary cache' 5 times. It only ever
-    # served what this same job had just downloaded. Removed rather than tuned.
-    # Cross-run reuse needs a real binary cache (attic/cachix on a box you own);
-    # add one when a cold run's ~5 GiB matters more than another service.
+    # Cross-run caching via cache-nix-action, NOT magic-nix-cache. GitHub's cache
+    # allows 200 uploads/min/repo; magic-nix-cache pushed one entry per store path
+    # and mail's closure alone is 923 paths, so it rate-limited itself out and
+    # uploaded nothing (measured: 0 uploads, 278 throttles, self-disabled 5x).
+    # cache-nix-action saves /nix as one entry, which is what makes it viable.
+    #
+    # It earns its keep on the paths cache.nixos.org does not have, which is also
+    # where the time goes: pi-1.5.2 (53s, 188 MiB) and formatelf-0.2.2 (50s,
+    # 48 MiB) are both 404 upstream. Stock nixpkgs paths are cheaper to re-fetch
+    # from cache.nixos.org than to restore from the 10 GB repo cache, which is
+    # why gc-max-store-size is capped.
     # Hosts still come from the flake, never a list here.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -79,6 +84,21 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flake-lock
+
+      # Restore before building so the slow non-upstream paths are already here.
+      # Key is the lock hash, so a new lock makes a new entry; the prefix restore
+      # still pulls the previous run's store as a base.
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # cap what gets saved: stock nixpkgs is a fast re-download, not worth
+          # spending the repo's 10 GB cache budget on
+          gc-max-store-size-linux: 3G
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-last-accessed: P7D
+          purge-primary-key: never
 
       - name: Build every host
         env:
