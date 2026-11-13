@@ -55,3 +55,9 @@ fmt:
 # Lint everything the flake exposes.
 check:
     nix flake check
+
+# Summarise the DMARC aggregate reports sitting in the mail box's .DMARC folder.
+dmarc target="root@91.132.147.216" folder="/var/vmail/lsinfra.de/leon/mail/.DMARC":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ssh {{target}} "nix shell nixpkgs#python3 -c python3 - {{folder}}" < scripts/dmarc-report.py
