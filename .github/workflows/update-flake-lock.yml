@@ -56,14 +56,20 @@ jobs:
   build:
     needs: update
     runs-on: ubuntu-latest
-    # One runner, all hosts, in sequence. Two reasons:
-    # 1. Each job is a fresh runner with a COLD nix store, so the matrix
-    #    re-downloaded the same ~5 GiB of shared NixOS closure per host
-    #    (kirito 5.4 GiB, surface 5.3 GiB) and rebuilt ~225 derivations twice.
-    #    On one store the second host is nearly free.
-    # 2. Only one magic-nix-cache daemon exists, so GitHub's cache rate limit
-    #    cannot disable it mid-run ("throttled Magic Nix Cache. Not trying to
-    #    use it again on this run", HTTP 418).
+    # One runner, all hosts, in sequence. Each matrix job got a fresh runner with
+    # a COLD nix store, so run 43418143255 re-downloaded the same shared NixOS
+    # closure per host: kirito 5.4 GiB / 2262 paths and 227 derivations built
+    # from scratch, surface 5.3 GiB / 2255 paths and 222 derivations, while mail
+    # hit the cache for 0.0 KiB. The local store IS the cache: on one runner the
+    # 2nd and 3rd host reuse what the 1st fetched (run 43422438336 pulled 5.5 GiB
+    # once, then 176 MiB, and went 15m29s -> 6m29s).
+    #
+    # magic-nix-cache stays, but do not trust it here: it was throttled 278 times
+    # in that run and uploaded nothing. It pushes one GitHub cache entry per store
+    # path, and a NixOS closure is thousands of tiny paths, so it hits the cache
+    # API's rate limit almost immediately and disables itself for the job.
+    # ponytail: sharing one store, not a real binary cache; add attic/cachix when
+    # cross-run reuse is worth another service.
     # Hosts still come from the flake, never a list here.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
