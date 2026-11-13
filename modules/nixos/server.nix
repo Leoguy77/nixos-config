@@ -263,6 +263,9 @@ in
         # carries its own traffic via tailscaled, not through an SSH session.
         AllowTcpForwarding = false;
         MaxAuthTries = 3;
+        # One authenticated connection may run several channels (muxing), so
+        # this only caps the abusive case. Nothing here needs ten.
+        MaxSessions = 3;
         ClientAliveInterval = 60;
         ClientAliveCountMax = 3;
 
@@ -312,6 +315,21 @@ in
         enabled = true;
         backend = "systemd";
         findtime = "10m";
+      };
+
+      # Every other jail's ban expires and the offender simply waits it out;
+      # this one reads fail2ban's own log, so a source that collects bans keeps
+      # collecting them. `bantime.increment` then escalates this to the 1w cap.
+      # findtime is long because it counts *bans*, not auth failures.
+      jails.recidive = {
+        enabled = true;
+        filter = "recidive";
+        settings = {
+          backend = "systemd";
+          findtime = "1d";
+          maxretry = 3;
+          bantime = "1w";
+        };
       };
     };
 
