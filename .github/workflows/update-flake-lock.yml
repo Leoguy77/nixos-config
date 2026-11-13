@@ -56,17 +56,15 @@ jobs:
   build:
     needs: update
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false # one broken host must not hide the rest
-      # Serialized on purpose. Each job runs its own magic-nix-cache daemon
-      # against the same GitHub cache scope; three in parallel makes GitHub
-      # throttle all but the first ("ResourceExhausted: rate limit exceeded",
-      # HTTP 418), so only one host ever uploads and the others rebuild ~230
-      # derivations from scratch on every run. Slower per run, but the cache
-      # actually accumulates.
-      max-parallel: 1
-      matrix:
-        host: ${{ fromJSON(needs.update.outputs.hosts) }}
+    # One runner, all hosts, in sequence. Two reasons:
+    # 1. Each job is a fresh runner with a COLD nix store, so the matrix
+    #    re-downloaded the same ~5 GiB of shared NixOS closure per host
+    #    (kirito 5.4 GiB, surface 5.3 GiB) and rebuilt ~225 derivations twice.
+    #    On one store the second host is nearly free.
+    # 2. Only one magic-nix-cache daemon exists, so GitHub's cache rate limit
+    #    cannot disable it mid-run ("throttled Magic Nix Cache. Not trying to
+    #    use it again on this run", HTTP 418).
+    # Hosts still come from the flake, never a list here.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
@@ -80,7 +78,22 @@ jobs:
         with:
           name: flake-lock
 
-      - run: nix build --no-link --print-out-paths ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel"
+      - name: Build every host
+        env:
+          HOSTS: ${{ needs.update.outputs.hosts }}
+        run: |
+          failed=''
+          for host in $(printf '%s' "$HOSTS" | tr -d '[]" ' | tr ',' ' '); do
+            echo "::group::build $host"
+            if nix build --no-link --print-out-paths \
+                 ".#nixosConfigurations.$host.config.system.build.toplevel"; then
+              echo "$host OK"
+            else
+              failed="$failed $host"
+            fi
+            echo '::endgroup::'
+          done
+          [ -z "$failed" ] || { echo "::error::failed hosts:$failed"; exit 1; }
 
   publish:
     needs: [update, build]
