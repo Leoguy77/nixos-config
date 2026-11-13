@@ -118,6 +118,23 @@ let
     "mta-sts.${cfg.domain}"
   ];
 
+  # Response headers, repeated wherever nginx would otherwise drop them (see
+  # commonHttpConfig below). Lives here so the roundcube vhost and the
+  # autoconfig vhosts share one definition.
+  #
+  # No `includeSubDomains`: the zone has subdomains this host does not serve
+  # (`wing` is CF_PROXY_OFF and speaks a non-HTTP protocol, and the rest live on
+  # a box that is still Debian). HSTS would commit all of them to HTTPS from
+  # every browser that ever saw this header, and it cannot be undone remotely.
+  # Add it once every subdomain terminates TLS here.
+  secHeaders = ''
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()" always;
+  '';
+
   # Standard paths only — these are what clients actually request:
   #   Thunderbird  GET https://autoconfig.<domain>/mail/config-v1.1.xml
   autoconfigSite = pkgs.runCommand "mail-autoconfig" { } ''
@@ -137,6 +154,7 @@ let
     enableACME = true;
     forceSSL = true;
     root = autoconfigSite;
+    extraConfig = secHeaders;
   });
 in
 
@@ -404,6 +422,15 @@ in
       # Uploads are bounded by Postfix's message_size_limit instead.
       clientMaxBodySize = "0";
 
+      # Response headers belong in the http block, not in each vhost.
+      #
+      # The catch: an `add_header` inside a location makes nginx DROP every
+      # add_header inherited from the enclosing blocks — it does not merge. So
+      # headers here only reach vhosts whose locations define none, and the
+      # roundcube module's `location /` (which sets Cache-Control) would shadow
+      # them. The `always` flag and the per-location repeat below exist for that.
+      commonHttpConfig = secHeaders;
+
       virtualHosts = {
         # :80 for the mail name — exists only to answer HTTP-01. Everything
         # else is redirected, so the vhost is a challenge endpoint, not a site.
@@ -419,6 +446,14 @@ in
           forceSSL = true;
           # Roundcube's module owns the php-fpm pool and the webroot; the vhost
           # is left to it (see services.roundcube below).
+          #
+          # These repeat the http-level headers at server level because the
+          # module's `location /` sets its own Cache-Control, which makes nginx
+          # drop everything inherited. Server level is reached by the PHP
+          # location (which sets no add_header), and that is the location that
+          # actually renders the login page. `mkAfter` rather than `=` because
+          # the module already assigns extraConfig and `lines` concatenates.
+          extraConfig = lib.mkAfter secHeaders;
         };
       }
       # Each autoconfig name gets its own vhost and certificate, served from one
@@ -541,6 +576,20 @@ in
         maxretry = 5;
         bantime = "1h";
       };
+    };
+
+    # ── PHP hardening (the only pool on this host is roundcube's) ──────────
+    # PHP advertises its exact build in `X-Powered-By`, which is free
+    # reconnaissance for a version-specific exploit; nothing consumes it.
+    #
+    # The session knobs cover anything PHP starts itself — Roundcube already
+    # sets HttpOnly+Secure on its own cookie. `use_strict_mode` rejects a
+    # session id the server never issued, which closes session fixation.
+    services.phpfpm.pools.roundcube.phpOptions = {
+      expose_php = "Off";
+      session.cookie_httponly = "1";
+      session.cookie_secure = "1";
+      session.use_strict_mode = "1";
     };
 
     # ── DKIM key ───────────────────────────────────────────────────────────
