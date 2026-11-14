@@ -18,9 +18,16 @@
 # arbitrary code running with your token on every push.
 name: update-flake-lock
 
+# GitHub's scheduler is best effort and the queue spike is at the TOP of every
+# hour, so `0 6 * * *` sat in it: measured over 114 scheduled runs, avg delay was
+# 400-560 min from November onward (the 13:59 run was scheduled for 06:00), and
+# the 14th's run had not started 143 min past its slot. Their troubleshooting
+# docs say it outright: "To decrease the chance of delay, schedule your workflow
+# to run at a different time of the hour." Hence :17. Nothing here cares about
+# the exact hour, only that it happens daily, so wander off-peak and drop it.
 on:
   schedule:
-    - cron: "0 6 * * *" # daily at 06:00 UTC
+    - cron: "17 6 * * *" # daily, ~06:17 UTC; off the hour on purpose
   workflow_dispatch: # manual trigger
 
 permissions:
