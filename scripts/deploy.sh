@@ -362,14 +362,12 @@ cp "$SOPS_YAML" "$KEY_DIR/sops.yaml.orig"
 cp "$SOPS_FILE" "$KEY_DIR/secrets.orig"
 
 # updatekeys has to decrypt the file first, and the only identity it can use is
-# your PGP key. Import it from ~/.ssh/GPG unless the keyring already has one, so
-# this does not silently depend on a previous manual import.
+# your PGP key. Its subkeys live on a Token2 card — plug one in before running
+# this, or import the master backup into the keyring first. (The old
+# ssh-to-pgp import from ~/.ssh/GPG is gone.)
 if ! gpg --batch --list-secret-keys 2>/dev/null | grep -q '^sec'; then
-	echo "→ importing your PGP key from ~/.ssh/GPG…"
-	if ! ssh-to-pgp -private-key -i "$HOME/.ssh/GPG" 2>/dev/null | gpg --batch --import >/dev/null 2>&1; then
-		echo "❌ Could not import ~/.ssh/GPG, so sops updatekeys cannot decrypt."
-		exit 1
-	fi
+	echo "❌ No PGP secret key in keyring. Plug in a Token2 card or import your master backup first."
+	exit 1
 fi
 
 echo "→ generating an SSH host key for $HOST…"

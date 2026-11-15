@@ -1,6 +1,7 @@
 # Home-manager sops (sops-nix) — decrypts the pi HA MCP config with the
-# user's SSH key (~/.ssh/GPG), converted to PGP internally via ssh-to-pgp.
-# Writes ~/.pi/agent/mcp.json (sops-install-secrets makes the parent dir).
+# user's Token2 GPG card (Leon's master 23CDB62B…, subkeys on the hardware
+# keys). Writes ~/.pi/agent/mcp.json (sops-install-secrets makes the parent
+# dir). Decryption requires a Token2 plugged in (OpenPGP applet) + PIN.
 {
   config,
   lib,
@@ -20,9 +21,6 @@ in
   config = lib.mkIf cfg.enable {
     sops = {
       defaultSopsFile = ../../secrets/secrets.sops.yaml;
-
-      # Decrypt pi's mcp.json with the user's ssh-RSA key (converted to PGP).
-      gnupg.sshKeyPaths = [ "${home}/.ssh/GPG" ];
 
       secrets.pi_mcp_json = {
         path = "${home}/.pi/agent/mcp.json";

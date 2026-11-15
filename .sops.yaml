@@ -8,8 +8,10 @@ keys:
   # value here is only what the last deploy enrolled. The ciphertext in
   # secrets.sops.yaml stays readable by your PGP key regardless.
   - &mail age14x2y8p0zwcxyyukz3janel8s9mjpa97ufnc6w64z88aw5z77zpdsvlt5j3
-  # User recipient: ~/.ssh/GPG, converted to PGP by sops-nix (home-manager).
-  - &leoguy77 5C0B8600A5177230B45A66EBF7169CB8EBBAF028
+  # User recipient: Leon's GPG master key (23CDB62B…), subkeys live on the
+  # two Token2 hardware keys. Decrypting as this user requires a Token2
+  # plugged in (OpenPGP applet) + PIN.
+  - &leoguy77 23CDB62B8549A1537F83F13A99CD2D0BD7504252
 
 # The identity set most secrets are readable by. The anchor sits on a real rule
 # on purpose: a creation_rules entry without `path_regex` matches *every* file,

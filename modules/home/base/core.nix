@@ -184,6 +184,9 @@ in
         ZSH_THEME="agnoster"
         source $ZSH/oh-my-zsh.sh
 
+        # gpg-agent pinentry needs to know the controlling terminal
+        export GPG_TTY=$(tty)
+
         # History options
         HISTSIZE=10000
         SAVEHIST=10000

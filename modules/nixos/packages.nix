@@ -37,6 +37,7 @@ in
         sops
         ssh-to-pgp
         gnupg
+        pinentry-curses # gpg-agent needs a pinentry or passphrase/PIN prompts fail
 
         # System monitoring
         htop

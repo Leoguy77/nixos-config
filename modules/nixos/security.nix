@@ -25,5 +25,8 @@ in
 
     # Polkit for privilege escalation
     security.polkit.enable = lib.mkDefault true;
+
+    # Smart-card daemon for FIDO2/PIV/OpenPGP over CCID (Token2 security keys)
+    services.pcscd.enable = lib.mkDefault true;
   };
 }
