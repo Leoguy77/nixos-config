@@ -77,11 +77,10 @@ in
         pull.rebase = lib.mkDefault true;
         merge.conflictstyle = lib.mkDefault "diff3";
         gpg = {
-          format = lib.mkDefault "ssh";
-          # git invokes this program itself; it resolves the matching private
-          # key from the 1Password vault (item "Github") via the public key
-          # git provides. No wrapper needed.
-          "ssh".program = lib.mkDefault "/run/current-system/sw/bin/op-ssh-sign";
+          # OpenPGP signing via the Token2 card's S subkey (gpg-agent handles
+          # card selection, PIN and touch). The old ssh/op-ssh-sign route
+          # through 1Password is retired.
+          format = lib.mkDefault "openpgp";
         };
       };
       signing = {

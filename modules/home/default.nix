@@ -12,7 +12,8 @@
     ./tui/tools.nix
 
     # sops (sops-nix) secrets
-    ./sops.nix
+    # (home-manager sops module removed — pi_mcp_json moved to system-level
+    # decryption in hosts/kirito/default.nix, see below)
 
     # GUI applications (desktop/laptop)
     ./gui/desktop.nix

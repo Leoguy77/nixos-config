@@ -58,7 +58,9 @@ _:
   git = {
     userName = "Leon";
     userEmail = "leonschneider29@googlemail.com";
-    signingKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l";
+    # OpenPGP master fingerprint — gpg picks the S subkey (14788494FDC10D36)
+    # from the Token2 cards to sign. Old ssh-ed25519 key retired.
+    signingKey = "23CDB62B8549A1537F83F13A99CD2D0BD7504252";
   };
 
   # Theme preferences

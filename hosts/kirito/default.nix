@@ -72,6 +72,15 @@
   # 1Password system integration (required for `op` CLI / browser unlock)
   modules.onepassword.enable = true;
 
+  # pi's Home Assistant MCP config — system-level sops secret decrypted with
+  # kirito's age host key (headless, no card). The plaintext lands in the
+  # user's home anyway, so card-protection bought nothing here; the old
+  # home-manager sops route failed headless (no TTY for the card PIN).
+  sops.secrets.pi_mcp_json = {
+    path = "/home/leoguy77/.pi/agent/mcp.json";
+    owner = "leoguy77";
+  };
+
   # Automated encrypted backups (restic)
   modules.backup.enable = true;
   modules.backup.paths = [
