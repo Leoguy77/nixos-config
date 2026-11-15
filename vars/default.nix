@@ -54,6 +54,15 @@ _:
     };
   };
 
+  # SSH public keys — one ed25519-sk (FIDO2) credential per Token2 key, so
+  # each is independently revocable. Key A = serial 57059485 (one dot),
+  # Key B = serial 99577136 (two dots). Resident + verify-required:
+  # usable only with the token present, PIN known, and touch given.
+  ssh = {
+    keyA = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAILcvZH+C4G29qVEP34shM+QPg8SOxoP58GJ7M76PFiTIAAAAC3NzaDpsc2luZnJh leoguy77@kirito tokenA";
+    keyB = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIFjju7Rsiq+BMPBYktR5tollrhj2dAW0r+2RP+ZO1oMPAAAAC3NzaDpsc2luZnJh leoguy77@kirito tokenB";
+  };
+
   # Git configuration
   git = {
     userName = "Leon";

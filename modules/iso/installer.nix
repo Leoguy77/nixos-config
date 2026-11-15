@@ -45,8 +45,13 @@ in
 
     adminKeys = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      # Same ed25519 key the hosts use. Public data, already in git.
-      default = [ myvars.git.signingKey ];
+      # The Token2 ssh keys plus the legacy 1Password key as a fallback for
+      # when no hardware key is plugged into the installing machine.
+      default = [
+        myvars.ssh.keyA
+        myvars.ssh.keyB
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
+      ];
       description = "SSH keys allowed to log in as root on the live system.";
     };
   };

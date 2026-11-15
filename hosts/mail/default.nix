@@ -78,7 +78,10 @@ in
   # ── Server baseline (no desktop) ─────────────────────────────────────────
   modules.server.enable = true;
   modules.server.adminKeys = [
-    # Same key as the other hosts (1Password "Github" key).
+    # Token2 hardware keys (ed25519-sk) plus the legacy 1Password key as
+    # fallback for when no token is plugged in.
+    myvars.ssh.keyA
+    myvars.ssh.keyB
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
   ];
 

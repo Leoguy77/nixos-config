@@ -89,7 +89,9 @@ in
       };
     };
 
-    # SSH configuration: use 1Password SSH agent for all connections
+    # SSH configuration: Token2 hardware keys (ed25519-sk, resident +
+    # verify-required) primary, 1Password agent as fallback for hosts where
+    # they are not yet enrolled.
     programs.ssh = {
       enable = true;
       # enableDefaultConfig must be false when manually setting defaults via settings."*"
@@ -107,15 +109,24 @@ in
           ServerAliveCountMax = 3;
           ServerAliveInterval = 0;
           UserKnownHostsFile = "~/.ssh/known_hosts";
+          IdentityFile = [
+            "~/.ssh/id_ed25519sk_tokenA"
+            "~/.ssh/id_ed25519sk_tokenB"
+          ];
+          # Fallback for hosts where the hardware keys are not enrolled yet:
+          # 1Password agent still serves the legacy key.
           IdentityAgent = "~/.1password/agent.sock";
         };
-        # GitHub specifics
+        # GitHub specifics — hardware keys first, legacy key as fallback
         "github.com" = {
           HostName = "github.com";
           User = "git";
-          IdentityFile = "~/.ssh/Github";
           IdentitiesOnly = "yes";
-          IdentityAgent = "~/.1password/agent.sock";
+          IdentityFile = [
+            "~/.ssh/id_ed25519sk_tokenA"
+            "~/.ssh/id_ed25519sk_tokenB"
+            "~/.ssh/Github"
+          ];
         };
       };
     };
