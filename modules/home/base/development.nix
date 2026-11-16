@@ -56,17 +56,11 @@ in
       };
     };
 
-    # The 1Password SSH agent socket (~/.1password/agent.sock) is
-    # provided by the 1Password desktop app (autostarted below).
-    # op-ssh-sign is only used for git commit signing, not as a daemon.
-    # It's configured in programs.git.gpg.ssh.program in core.nix.
-
-    # Export SSH_AUTH_SOCK so CLI tools (ssh, ssh-add, git signing hooks)
-    # discover the 1Password agent. Without this only programs.ssh's
-    # IdentityAgent setting applies, leaving SSH_AUTH_SOCK unset in shells.
-    home.sessionVariables = lib.mkIf cfg.onepassword {
-      SSH_AUTH_SOCK = "$HOME/.1password/agent.sock";
-    };
+    # The 1Password SSH agent socket (~/.1password/agent.sock) is provided by
+    # the desktop app (autostarted below), but SSH does not use it: the Token2
+    # keys are the only identities now. SSH_AUTH_SOCK used to be exported here,
+    # which made the agent win for anything reading the socket directly
+    # (ssh-add, git, editors) and silently bypass the hardware keys.
 
     # 1Password GUI autostart
     systemd.user.services.onepassword = lib.mkIf cfg.onepassword {
@@ -84,5 +78,21 @@ in
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
+
+    # Bootstrap escape hatch: ``ssh-legacy <host>`` logs in with the 1Password
+    # agent/key, for hosts that do not have the Token2 keys yet. It is a
+    # separate command ON PURPOSE — the default ssh must never fall back to a
+    # key that is not hardware-backed, which is exactly what used to happen.
+    #
+    # To enrol a new host:
+    #   ssh-legacy root@host 'cat >> ~/.ssh/authorized_keys' < tokenA.pub
+    #   ssh-copy-id -i ~/.ssh/id_ed25519sk_tokenA.pub root@host
+    home.packages = lib.mkIf cfg.onepassword [
+      (pkgs.writeShellScriptBin "ssh-legacy" ''
+        # Wrapper around ssh that uses ONLY the 1Password agent, so a host
+        # without Token2 keys can still be reached. Never used by default.
+        exec ${pkgs.openssh}/bin/ssh -o IdentityAgent="$HOME/.1password/agent.sock" "$@"
+      '')
+    ];
   };
 }

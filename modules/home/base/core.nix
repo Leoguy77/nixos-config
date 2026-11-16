@@ -113,11 +113,15 @@ in
             "~/.ssh/id_ed25519sk_tokenA"
             "~/.ssh/id_ed25519sk_tokenB"
           ];
-          # Fallback for hosts where the hardware keys are not enrolled yet:
-          # 1Password agent still serves the legacy key.
-          IdentityAgent = "~/.1password/agent.sock";
+          # No agent. The 1Password agent used to sit here as a fallback, but a
+          # fallback is what gets used: it answered silently with the legacy key
+          # and the token was never exercised. With the agent gone, ssh either
+          # authenticates with the token or fails loudly. PIN + touch come from
+          # SSH_ASKPASS (ksshaskpass, set by the Plasma session).
+          IdentityAgent = "none";
         };
-        # GitHub specifics — hardware keys first, legacy key as fallback
+        # GitHub specifics — hardware keys only. IdentitiesOnly keeps the
+        # legacy ~/.ssh/Github stub from ever being offered.
         "github.com" = {
           HostName = "github.com";
           User = "git";
@@ -125,22 +129,9 @@ in
           IdentityFile = [
             "~/.ssh/id_ed25519sk_tokenA"
             "~/.ssh/id_ed25519sk_tokenB"
-            "~/.ssh/Github"
           ];
         };
       };
-    };
-
-    # Create Github public key file
-    home.file.".ssh/Github.pub" = {
-      text = lib.mkDefault "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github\n";
-      force = true; # Overwrite existing file
-    };
-
-    # Create Github private key file (stub - actual key is in 1Password)
-    home.file.".ssh/Github" = {
-      text = lib.mkDefault "-----BEGIN OPENSSH PRIVATE KEY-----\n-----END OPENSSH PRIVATE KEY-----\n";
-      force = true; # Overwrite existing file
     };
 
     # SUDO_ASKPASS — GUI password dialog for pi agent's sudo calls
