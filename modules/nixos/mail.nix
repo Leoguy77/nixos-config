@@ -156,6 +156,57 @@ let
     root = autoconfigSite;
     extraConfig = secHeaders;
   });
+
+  # ── Web Key Directory (draft-koch-openpgp-webkey-service) ─────────────
+  #
+  # `gpg --locate-keys leon@lsinfra.de` and Thunderbird's key discovery both
+  # fetch the key over HTTPS instead of a public keyserver, where anyone could
+  # have uploaded a key for this address. The directory is built from the
+  # published key files, not hand-written: the hashed filename is SHA-1 +
+  # z-base-32 of the *lowercased local part*, so a typo would silently serve a
+  # key nobody looks up.
+  #
+  # Advanced method only: clients look at openpgpkey.<domain> first. The direct
+  # method (same path on the mail domain) is not offered — mail.<domain> already
+  # has an nginx vhost that redirects every path to webmail, and a second
+  # meaning for /.well-known there would collide with it.
+  wkdDomain = "openpgpkey.${cfg.domain}";
+  # Keys live with the mail host's data, not in this module's directory: this
+  # is per-host content, and the module is shared.
+  wkdKeysDir = ../../hosts/mail/wkd;
+  wkdSite = pkgs.runCommand "wkd-site" { nativeBuildInputs = [ pkgs.gnupg ]; } ''
+    export GNUPGHOME=$(mktemp -d)
+    chmod 700 "$GNUPGHOME"
+
+    # gpg-wks-server insists on mode 700 for its -C directory, so the tree is
+    # assembled privately under $TMPDIR and opened up only once it is in place.
+    work=$(mktemp -d)/.well-known/openpgpkey
+    mkdir -p "$work"
+    chmod 700 "$work"
+
+    shopt -s nullglob
+    for key in ${wkdKeysDir}/*.asc; do
+      gpg --batch --quiet --import "$key"
+      # One WKD entry per mail address the key claims, filtered to this domain:
+      # the directory is per-domain, so an address at another domain would be
+      # published under the wrong tree.
+      gpg --batch --with-colons --list-keys | awk -F: '/^uid:/ {print $10}' \
+        | grep -oE '[^<>[:space:]]+@[^<>[:space:]]+' | sort -u \
+        | while read -r addr; do
+            case "$addr" in
+              *@${cfg.domain})
+                fpr=$(gpg --batch --with-colons --list-keys "$addr" \
+                  | awk -F: '/^fpr:/ {print $10; exit}')
+                gpg-wks-server -C "$work" --install-key "$fpr" "$addr"
+                ;;
+            esac
+          done
+    done
+
+    mkdir -p $out/.well-known
+    cp -r "$work" $out/.well-known/openpgpkey
+    chmod -R u+rwX,go+rX $out
+  '';
 in
 
 {
@@ -448,7 +499,25 @@ in
       # Each autoconfig name gets its own vhost and certificate, served from one
       # store path (see autoconfigVhosts above). The `mail` vhost redirects to
       # webmail on every path, so these records 404'd when they pointed here.
-      // autoconfigVhosts;
+      // autoconfigVhosts
+      # Web Key Directory. Its own name (not a path on mail.<domain>) because
+      # the advanced method is what clients try first and because the mail
+      # vhost redirects every path to webmail.
+      // {
+        "${wkdDomain}" = {
+          enableACME = true;
+          forceSSL = true;
+          root = wkdSite;
+          extraConfig = secHeaders;
+          # The binary key is the payload (application/octet-stream per the
+          # draft); nginx would otherwise guess text/plain from the hashed
+          # filename. No index, per RFC 8615 §3.
+          locations."/".extraConfig = ''
+            autoindex off;
+            default_type application/octet-stream;
+          '';
+        };
+      };
     };
 
     # Port 465 (enableSubmissionSsl) is the only submission service enabled here,

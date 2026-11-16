@@ -50,6 +50,13 @@ in
     (rr ''CNAME("autodiscover", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
     (rr ''CNAME("mta-sts", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
 
+    # ── OpenPGP Web Key Directory ─────────────────────────────────────────
+    # `gpg --locate-keys leon@lsinfra.de` and Thunderbird's key discovery look
+    # up `hu/<hash>` on this name (the draft's "advanced method"). It has to be
+    # a real subdomain, not a path on mail: the mail vhost 301s every path to
+    # webmail. ACME needs port 80 on the name, hence CF_PROXY_OFF.
+    (rr ''CNAME("openpgpkey", "mail.lsinfra.de.", CF_PROXY_OFF, TTL(300))'')
+
     # ── Mail routing ──────────────────────────────────────────────────────
     (rr ''MX("@", 10, "mail.lsinfra.de.")'')
     # `mx` authorises the MX target only. No a:/ip4: for host1: that would
