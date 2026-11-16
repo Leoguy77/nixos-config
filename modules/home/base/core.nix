@@ -85,8 +85,14 @@ in
       # GUI prompt: the agent must be able to ask for the card PIN from
       # contexts with no terminal (git hooks, editors, this agent's shell).
       pinentry.package = pkgs.pinentry-qt;
-      # Cache TTLs left at gpg's defaults (1800 s / 7200 s). Set
-      # defaultCacheTtlSsh = 0 to require the PIN for every signature.
+      # PIN cache for SSH signatures. 7.5 minutes is short enough that a
+      # walked-away-from session stops signing quickly, long enough to finish a
+      # git push without retyping. Touch is still required on every signature —
+      # UIF Auth=on is on the card, not negotiable from here.
+      defaultCacheTtlSsh = 450;
+      # gpg's own ceiling is 2 h; halved to 1 h so the window can't be slid
+      # indefinitely by keeping the session busy.
+      maxCacheTtlSsh = 3600;
     };
 
     # Git configuration
