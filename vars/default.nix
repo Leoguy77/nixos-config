@@ -54,13 +54,14 @@ _:
     };
   };
 
-  # SSH public keys — one ed25519-sk (FIDO2) credential per Token2 key, so
-  # each is independently revocable. Key A = serial 57059485 (one dot),
-  # Key B = serial 99577136 (two dots). Resident + verify-required:
-  # usable only with the token present, PIN known, and touch given.
+  # SSH public key — the OpenPGP auth subkey 11BE08BBC020EF46. Both Token2
+  # cards carry the same subkey (the keygrip derives from the public key), so
+  # ONE line covers either token and any replacement card — no per-host
+  # re-enrolment when a token is lost. The key never leaves the card: gpg-agent
+  # signs after a PIN + touch. The master key is certify-only and stays on the
+  # offline USB sticks, so it cannot be used for SSH.
   ssh = {
-    keyA = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAILcvZH+C4G29qVEP34shM+QPg8SOxoP58GJ7M76PFiTIAAAAC3NzaDpsc2luZnJh leoguy77@kirito tokenA";
-    keyB = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIFjju7Rsiq+BMPBYktR5tollrhj2dAW0r+2RP+ZO1oMPAAAAC3NzaDpsc2luZnJh leoguy77@kirito tokenB";
+    key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKfgUoHJ8xxWqcS3FPnf17UPD3FAQICJS0D9zS8Iy5Mj openpgp:0xC020EF46";
   };
 
   # Git configuration

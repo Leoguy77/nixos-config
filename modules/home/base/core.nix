@@ -65,6 +65,30 @@ in
       mosquitto
     ];
 
+    # GnuPG: card-backed OpenPGP (Token2), managed declaratively so a fresh
+    # machine works without the hand-written ~/.gnupg files.
+    programs.gpg = {
+      enable = true;
+      # scdaemon's internal CCID driver does not work with the Token2 reader;
+      # the pcscd daemon (services.pcscd) must drive it instead.
+      scdaemonSettings.disable-ccid = true;
+    };
+
+    services.gpg-agent = {
+      enable = true;
+      # Expose the A subkey over the agent's SSH socket. This also exports
+      # SSH_AUTH_SOCK in the shell, pointing gpg-agent.
+      enableSshSupport = true;
+      # The auth subkey's keygrip (OPENPGP.3). Both cards carry the same key,
+      # so this one entry covers either token and any replacement card.
+      sshKeys = [ "0BF868B83537230B562981D7D864804892670786" ];
+      # GUI prompt: the agent must be able to ask for the card PIN from
+      # contexts with no terminal (git hooks, editors, this agent's shell).
+      pinentry.package = pkgs.pinentry-qt;
+      # Cache TTLs left at gpg's defaults (1800 s / 7200 s). Set
+      # defaultCacheTtlSsh = 0 to require the PIN for every signature.
+    };
+
     # Git configuration
     programs.git = {
       enable = true;
@@ -109,27 +133,29 @@ in
           ServerAliveCountMax = 3;
           ServerAliveInterval = 0;
           UserKnownHostsFile = "~/.ssh/known_hosts";
-          IdentityFile = [
-            "~/.ssh/id_ed25519sk_tokenA"
-            "~/.ssh/id_ed25519sk_tokenB"
-          ];
-          # No agent. The 1Password agent used to sit here as a fallback, but a
-          # fallback is what gets used: it answered silently with the legacy key
-          # and the token was never exercised. With the agent gone, ssh either
-          # authenticates with the token or fails loudly. PIN + touch come from
-          # SSH_ASKPASS (ksshaskpass, set by the Plasma session).
-          IdentityAgent = "none";
+          # One credential for every host: the OpenPGP auth subkey
+          # 11BE08BBC020EF46, served by gpg-agent's SSH socket. Both tokens and
+          # any replacement card carry the same subkey, so hosts get ONE public
+          # key that never needs re-adding. PIN unlocks it; touch signs.
+          #
+          # The braces are required: ssh expands ${XDG_RUNTIME_DIR} here, but a
+          # bare $VAR/... is rejected as an invalid environment name.
+          IdentityAgent = "\${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh";
+          # IdentityFile = none is load-bearing: ssh otherwise falls back to its
+          # built-in defaults (~/.ssh/id_ed25519, id_rsa, ...) and offers those
+          # before the card — offering a stale key first gets you rejected or,
+          # worse, authenticated with the wrong key. Verified: without it ssh
+          # offers id_ed25519; with it, only the card's key.
+          IdentityFile = "none";
+          # IdentitiesOnly must stay NO: it means "only use IdentityFile keys",
+          # and the key we want comes from the agent, not a file. Verified —
+          # with "yes", nothing is offered at all.
+          IdentitiesOnly = "no";
         };
-        # GitHub specifics — hardware keys only. IdentitiesOnly keeps the
-        # legacy ~/.ssh/Github stub from ever being offered.
+        # GitHub specifics — same single key, but git needs the explicit user.
         "github.com" = {
           HostName = "github.com";
           User = "git";
-          IdentitiesOnly = "yes";
-          IdentityFile = [
-            "~/.ssh/id_ed25519sk_tokenA"
-            "~/.ssh/id_ed25519sk_tokenB"
-          ];
         };
       };
     };
@@ -187,6 +213,10 @@ in
 
         # gpg-agent pinentry needs to know the controlling terminal
         export GPG_TTY=$(tty)
+        # The agent is socket-activated by systemd, so it did not inherit
+        # DISPLAY from a login shell — tell it the current one or pinentry-qt
+        # fails with "cannot open display".
+        gpg-connect-agent --quiet updatestartuptty /bye >/dev/null 2>&1
 
         # History options
         HISTSIZE=10000
