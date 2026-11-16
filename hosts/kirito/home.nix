@@ -15,6 +15,7 @@
   home.packages = [
     pkgs.incus # Incus container CLI (client)
     pkgs.opentofu # OpenTofu — open-source Terraform (manages Incus VMs)
+    pkgs.ausweisapp # German eID (nPA) reader — talks to the card via pcscd
   ];
 
   # Enable all home modules
