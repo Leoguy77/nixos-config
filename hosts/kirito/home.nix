@@ -16,6 +16,7 @@
     pkgs.incus # Incus container CLI (client)
     pkgs.opentofu # OpenTofu — open-source Terraform (manages Incus VMs)
     pkgs.ausweisapp # German eID (nPA) reader — talks to the card via pcscd
+    pkgs.gh # GitHub CLI (repo, PR, GPG/SSH key management)
   ];
 
   # Enable all home modules
