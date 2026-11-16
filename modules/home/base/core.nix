@@ -85,6 +85,11 @@ in
       # GUI prompt: the agent must be able to ask for the card PIN from
       # contexts with no terminal (git hooks, editors, this agent's shell).
       pinentry.package = pkgs.pinentry-qt;
+      # Off: pinentry's keyboard/mouse grab is unreliable on Wayland and can
+      # route the typed PIN elsewhere, which the card then rejects as a bad PIN
+      # (burning a retry, and the OpenPGP counter only has 3). The grab guards
+      # against X-sniffing; not worth a bricked card on KDE/Wayland.
+      grabKeyboardAndMouse = false;
       # PIN cache for SSH signatures. 7.5 minutes is short enough that a
       # walked-away-from session stops signing quickly, long enough to finish a
       # git push without retyping. Touch is still required on every signature —
