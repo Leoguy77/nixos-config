@@ -69,6 +69,14 @@
   # Firmware updates via fwupd (LVFS)
   services.fwupd.enable = true;
 
+  # AusweisApp: the smartphone announces itself as a card reader by
+  # broadcasting a REMOTE_IFD discovery datagram to UDP 24727 (TR-03124-1).
+  # Without this rule the phone never appears in the app — verified by
+  # removing the rule and watching the phone stop showing up.
+  # ponytail: open on all interfaces; narrow to the LAN subnet if the
+  # exposure ever matters.
+  networking.firewall.allowedUDPPorts = [ 24727 ];
+
   # 1Password system integration (required for `op` CLI / browser unlock)
   modules.onepassword.enable = true;
 
