@@ -37,7 +37,9 @@ in
         sops
         ssh-to-pgp
         gnupg
-        pinentry-curses # gpg-agent needs a pinentry or passphrase/PIN prompts fail
+        pinentry-curses # terminal PIN/passphrase prompt (works when GPG_TTY is set)
+        pinentry-qt # GUI prompt — the agent can then ask for the card PIN from
+        # contexts with no TTY (agent/tool shells, GUI apps, `git commit`)
 
         # System monitoring
         htop
