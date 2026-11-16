@@ -78,10 +78,9 @@ in
   # ── Server baseline (no desktop) ─────────────────────────────────────────
   modules.server.enable = true;
   modules.server.adminKeys = [
-    # Token2 hardware keys (ed25519-sk) plus the legacy 1Password key as
-    # fallback for when no token is plugged in.
-    myvars.ssh.keyA
-    myvars.ssh.keyB
+    # One line covers every Token2 token: the OpenPGP auth subkey. Plus the
+    # legacy 1Password key as a fallback for a machine with no card reader.
+    myvars.ssh.key
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
   ];
 

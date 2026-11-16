@@ -45,11 +45,10 @@ in
 
     adminKeys = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      # The Token2 ssh keys plus the legacy 1Password key as a fallback for
-      # when no hardware key is plugged into the installing machine.
+      # The Token2 OpenPGP auth subkey plus the legacy 1Password key as a
+      # fallback for when no card reader is available.
       default = [
-        myvars.ssh.keyA
-        myvars.ssh.keyB
+        myvars.ssh.key
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
       ];
       description = "SSH keys allowed to log in as root on the live system.";
