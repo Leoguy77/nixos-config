@@ -19,6 +19,13 @@
 # and the script refuses a hardware-configuration.nix that also defines
 # fileSystems, so the two cannot disagree. A host that wants a different layout
 # sets devices itself; the layout is a default, not a constraint.
+#
+# An ephemeral (tmpfs) root is NOT part of this role. Encryption is about what
+# happens when the machine is stolen; ephemerality is about how much leftover
+# drift you are willing to tolerate between reboots, and that is a per-machine
+# judgement. To opt in, add the two lines:
+#   imports = [ ./state.nix ];
+#   modules.disk.ephemeralRoot = true;
 { inputs, ... }:
 {
   imports = [

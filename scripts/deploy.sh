@@ -410,6 +410,13 @@ echo "→ secrets re-encrypted to the new key"
 
 STAGE_DIR="$(mktemp -d)"
 install -D -m 0600 "$HOST_KEY_FILE" "$STAGE_DIR/etc/ssh/ssh_host_ed25519_key"
+# Ephemeral roots: / is tmpfs, so the copy above lands on a filesystem that no
+# longer exists after the first reboot, and the host key (which is also the sops
+# age identity) would be gone. Every disko layout here mounts /persist, and
+# profiles/state.nix persists this exact path out of it — so write both copies
+# and let the layout decide which one is live. A non-ephemeral host just ignores
+# the second file.
+install -D -m 0600 "$HOST_KEY_FILE" "$STAGE_DIR/persist/etc/ssh/ssh_host_ed25519_key"
 # Land the bootstrap key on the ESP (disko mounts it at /mnt/boot, and
 # --extra-files untars into /mnt). The initrd mounts that same ESP, so the key is
 # there before stage 1 runs and survives every later rebuild.
@@ -420,6 +427,7 @@ if [ -n "$EXTRA_FILES" ]; then
 	cp -a "$EXTRA_FILES/." "$STAGE_DIR/"
 	# Re-install after the merge so a caller's tree cannot shadow the key.
 	install -D -m 0600 "$HOST_KEY_FILE" "$STAGE_DIR/etc/ssh/ssh_host_ed25519_key"
+	install -D -m 0600 "$HOST_KEY_FILE" "$STAGE_DIR/persist/etc/ssh/ssh_host_ed25519_key"
 fi
 EXTRA_FILES="$STAGE_DIR"
 EXTRA_ARGS=(--extra-files "$EXTRA_FILES")

@@ -5,6 +5,9 @@
 #   swap  LUKS  -> swap   (resumeDevice, so hibernation works)
 #   root  LUKS  -> btrfs  (/root /nix /home /var)
 #
+# With modules.disk.ephemeralRoot the root subvolume is replaced by a tmpfs and
+# /var joins it, so a reboot leaves only what profiles/state.nix persists.
+#
 # Why a separate swap container and not a swapfile in the btrfs: an active
 # btrfs swapfile cannot be resumed from — systemd needs both `resume=` and
 # `resume_offset=`, and the offset has to be recomputed whenever the file moves
@@ -22,10 +25,34 @@
 #   nixos-anywhere --flake .#<host> --target-host root@<ip> \
 #     --disk main /dev/nvme0n1 \
 #     --disk-encryption-keys /tmp/luks-password /tmp/luks-password
-_:
+{
+  config,
+  lib,
+  ...
+}:
+
+let
+  # Ephemeral root: `/` is a tmpfs and only the declared subvolumes survive a
+  # reboot. This is the option that makes impermanence mean something — without
+  # it profiles/state.nix is a no-op, because everything it binds from /persist
+  # is already on a persistent root anyway.
+  #
+  # /home stays a real subvolume even here. User data is not configuration, and
+  # "your files are gone unless listed" is a data-loss feature, not a security
+  # one. /var goes ephemeral because it is exactly the set of things
+  # profiles/state.nix already enumerates.
+  #
+  # tmpfs size is a ceiling, not an allocation — it grows on demand. 8G is sized
+  # for build temp dirs in /tmp; the root itself holds only /etc, /root and /tmp.
+  # Keep it well under RAM: every page a tmpfs holds is a page the hibernation
+  # image also has to write to swap.
+  ephemeralRoot = config.modules.disk.ephemeralRoot;
+in
 
 {
-  disko.devices = {
+  options.modules.disk.ephemeralRoot = lib.mkEnableOption "an ephemeral (tmpfs) root, with declared paths persisted";
+
+  config.disko.devices = {
     disk.main = {
       type = "disk";
       device = "/dev/nvme0n1"; # placeholder, override with --disk main DEVICE
@@ -77,7 +104,17 @@ _:
               content = {
                 type = "btrfs";
                 extraArgs = [ "-f" ];
-                subvolumes = {
+                # Under an ephemeral root, / and /var are the two things that must
+                # NOT be subvolumes: / comes from the tmpfs and /var is rebuilt
+                # from what profiles/state.nix persists into it. /home stays a
+                # real subvolume on purpose — user data is not configuration, and
+                # "your files are gone unless listed" is data loss dressed up as
+                # a feature. Filtering here keeps one subvolume list, not two.
+                #
+                # /home must additionally be neededForBoot (set in
+                # profiles/state.nix): impermanence links persisted user paths
+                # into it before local-fs.target.
+                subvolumes = lib.filterAttrs (name: _: !(ephemeralRoot && (name == "/root" || name == "/var"))) {
                   "/root" = {
                     mountpoint = "/";
                     mountOptions = [
@@ -85,7 +122,6 @@ _:
                       "noatime"
                     ];
                   };
-
                   "/nix" = {
                     mountpoint = "/nix";
                     mountOptions = [
@@ -128,6 +164,16 @@ _:
           };
         };
       };
+    };
+
+    # The ephemeral root itself: a tmpfs, so disko writes nothing to a device for
+    # it. `nodev` is disko's type for exactly this.
+    nodev."/" = lib.mkIf ephemeralRoot {
+      fsType = "tmpfs";
+      mountOptions = [
+        "size=8G"
+        "mode=755"
+      ];
     };
   };
 }

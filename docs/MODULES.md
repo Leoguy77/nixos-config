@@ -117,6 +117,33 @@ A host with an encrypted root also needs a disko layout and an entry in
 `scripts/deploy.sh`'s expectations; see `hosts/mail/README.md` for the full
 worked example (custom ISO, initrd tailnet unlock, host-key seeding).
 
+## Ephemeral root
+
+`profiles/laptop.nix` imports the layout and turns on full disk encryption, but
+NOT an ephemeral root. Both are per-host decisions:
+
+```nix
+imports = [ ... ../../profiles/state.nix ];
+modules.disk.ephemeralRoot = true;
+```
+
+With it on, `/` is a tmpfs (8G) and `/var` is rebuilt from `/persist`; `/nix`
+and `/home` stay real btrfs subvolumes. `/home` is deliberately NOT ephemeral:
+user data is not configuration, and a path list that misses one directory is
+silent data loss. `profiles/state.nix` therefore lists only system state whose
+loss breaks a boot.
+
+Two things this depends on, both easy to break:
+
+- `scripts/deploy.sh` writes the host key to `/persist/etc/ssh/` as well as
+  `/etc/ssh/`. That key is also the sops/age identity; a tmpfs `/` means the
+  `/etc` copy is gone after the first reboot and every secret fails to decrypt.
+- impermanence's `method = "auto"` binds when the persisted file exists and
+  symlinks otherwise. There is no "reconcile" method — it does not exist in
+  upstream impermanence at any commit — so the deploy-time seeding is the only
+  thing making a fresh install work. Do not remove it on the assumption that
+the module handles it.
+
 ## Adding a module
 
 ```nix

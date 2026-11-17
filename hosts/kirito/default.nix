@@ -9,7 +9,13 @@
     ./hardware-configuration.nix
     # Laptop role: the shared desktop stack + battery-aware power management.
     ../../profiles/laptop.nix
+    # Ephemeral root: / is tmpfs, and only what profiles/state.nix names survives
+    # a reboot. Opted in here rather than in the laptop role — the machine that
+    # tolerates it is a per-host judgement, not a property of running on battery.
+    ../../profiles/state.nix
   ];
+
+  modules.disk.ephemeralRoot = true;
 
   # Point the desktop profile at this host's home-manager overrides.
   modules.desktop.homeModule = ./home.nix;

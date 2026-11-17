@@ -1,4 +1,4 @@
-# Impermanence — persist a declared set of paths across a wiped root.
+# Impermanence — persist a declared set of system paths across a wiped root.
 #
 # A profile, not a module: importing this file IS the switch, so there is no
 # `enable` flag to set as well. It stays out of modules/nixos on purpose —
@@ -13,6 +13,14 @@
 # anything outside this list is a leftover, and a reboot proves the config is
 # complete instead of leaving it as a claim.
 #
+# SCOPE: /home is NOT made ephemeral by any layout here. It is a real btrfs
+# subvolume, so user data survives on its own and is deliberately absent from
+# this list. That is the whole design: the risky half (system state, where a
+# forgotten file breaks boot) is declared and provable, and the half with
+# irreplaceable data (home) is not a guess. Enumerating user paths would mean
+# the machine silently eats whatever was not listed — `.config/mozilla` instead
+# of `.mozilla/firefox` is exactly that bug, and it costs 976M of profile.
+#
 # Two things this file exists to get right, because both are silent data loss:
 #
 #   1. The sops/age identity must be persisted. `modules/nixos/sops.nix` decrypts
@@ -25,7 +33,7 @@
 #      `local-fs.target`; impermanence's per-path units finish `before`
 #      `local-fs.target`. systemd therefore already guarantees the host key is
 #      mounted before decryption is attempted.
-{ inputs, myvars, ... }:
+{ inputs, ... }:
 
 {
   imports = [ inputs.impermanence.nixosModules.impermanence ];
@@ -44,6 +52,11 @@
       "/var/lib/nixos"
       "/var/lib/systemd"
 
+      # Root's home. `/` is tmpfs, so without this /root is empty every boot —
+      # root shell history, root's .ssh and any token files dropped there are
+      # gone. Cheap to keep and only surprising once.
+      "/root"
+
       # Logs. An ephemeral journal dies with the boot that produced the evidence,
       # which is the wrong half of a debugging session to lose.
       "/var/log"
@@ -56,13 +69,18 @@
       # reason people abandon an ephemeral root.
       "/var/lib/bluetooth"
 
-      # The restic repository: sops now supplies the password, but restic's own
+      # The restic repository cache: sops supplies the password, but restic's own
       # cache and the fallback generated file live here too.
       "/var/backup"
 
       # sops-nix's per-host age key, for hosts that use one instead of the ssh
       # host key.
       "/var/lib/sops-nix"
+
+      # Saved wifi networks and the flipdot WireGuard connection. A DIRECTORY, so
+      # it belongs here — listed under `files` impermanence would symlink the
+      # directory itself and NetworkManager would see no saved networks.
+      "/etc/NetworkManager/system-connections"
     ];
 
     files = [
@@ -73,72 +91,15 @@
 
       # The SSH host keys — which are ALSO the sops/age identity. Losing these is
       # not a "re-trust the fingerprint" annoyance, it is every secret on the
-      # machine failing to decrypt.
+      # machine failing to decrypt. Persist ALL of them: NixOS 25.11 also
+      # generates ssh_host_mldsa44_ed25519_key (post-quantum), and a key that is
+      # recreated every boot breaks any client that pinned the old one.
       "/etc/ssh/ssh_host_ed25519_key"
       "/etc/ssh/ssh_host_ed25519_key.pub"
       "/etc/ssh/ssh_host_rsa_key"
       "/etc/ssh/ssh_host_rsa_key.pub"
-
-      # Saved wifi networks and the flipdot WireGuard connection.
-      "/etc/NetworkManager/system-connections"
+      "/etc/ssh/ssh_host_mldsa44_ed25519_key"
+      "/etc/ssh/ssh_host_mldsa44_ed25519_key.pub"
     ];
-
-    # User state. Deliberately short: this list decides whether a reboot is
-    # invisible or infuriating, and every entry is a bet that the path holds
-    # state rather than cache.
-    users.${myvars.username} = {
-      directories = [
-        "Desktop"
-        "Documents"
-        "Pictures"
-        "Videos"
-
-        # GPG: the keyring and trust db. Private keys live on the Token2, but the
-        # keyring that knows they exist does not.
-        {
-          directory = ".gnupg";
-          mode = "0700";
-        }
-
-        # SSH identities and known_hosts. known_hosts especially: re-accepting
-        # every fingerprint after every boot trains you to ignore the warning.
-        {
-          directory = ".ssh";
-          mode = "0700";
-        }
-
-        # Secret stores and their identities.
-        ".password-store"
-        ".config/sops"
-        ".config/age"
-        ".local/share/keyrings"
-        ".config/gh"
-
-        # Agent state that cannot be regenerated: conversation history, session
-        # summaries, indexed memories.
-        ".pi"
-        ".local/share/pi"
-        ".config/pi"
-
-        # Browsers: profile, bookmarks, extensions, logins. Cache subdirs are not
-        # listed — those are correctly thrown away.
-        ".mozilla/firefox"
-
-        # Shell history. Losing it is the most disproportionately annoying part
-        # of a careless ephemeral root.
-        ".local/share/zsh"
-
-        # Repos and the toolchain state that is expensive to rebuild.
-        "Development"
-        ".config/git"
-        ".local/state/nix"
-        ".local/share/direnv"
-      ];
-
-      files = [
-        ".bash_history"
-        ".zsh_history"
-      ];
-    };
   };
 }
