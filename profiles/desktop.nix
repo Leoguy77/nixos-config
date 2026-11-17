@@ -58,6 +58,7 @@
 
     modules.packages.enable = true;
     modules.users.enable = true;
+    modules.login.enable = true;
     modules.security.enable = true;
     modules.onepassword.enable = true;
 

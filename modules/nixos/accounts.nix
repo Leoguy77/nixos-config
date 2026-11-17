@@ -41,7 +41,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    users.mutableUsers = false;
+    # mkDefault, not mkForce: the password now comes from modules.login on
+    # desktops and from this module on servers. With a plain `false` here and
+    # login.nix also setting `false`, merging would abort on a conflicting
+    # definition of the same value.
+    users.mutableUsers = lib.mkDefault false;
 
     users.users.root.openssh.authorizedKeys.keys = cfg.adminKeys;
 
