@@ -99,7 +99,7 @@ If that prints `false`, stop — the install will produce a locked machine.
 
 ---
 
-## 0b. Before you leave the running system
+## 0c. Before you leave the running system
 
 The new machine's **sops/age identity is its SSH host key**, and kirito's age
 recipient is already in `.sops.yaml`. So you have two options, and the difference
