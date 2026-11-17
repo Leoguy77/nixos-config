@@ -9,8 +9,7 @@ Verify anything here against the live option tree rather than trusting this
 page:
 
 ```bash
-nix eval --json .#nixosConfigurations.surface.config.modules --apply builtins.attrNames
-nix eval --json .#nixosConfigurations.surface.config.modules.server --apply builtins.attrNames
+nix eval --json .#nixosConfigurations.kirito.config.modules --apply builtins.attrNames
 ```
 
 ## Layout

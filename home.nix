@@ -2,7 +2,7 @@
 # This file imports all modular home configurations
 #
 # NOTE: The preferred way to build this system is now via flakes:
-#   home-manager switch --flake .#leoguy77@surface
+#   home-manager switch --flake .#leoguy77@kirito
 #
 # This file is kept for compatibility with non-flake workflows
 {

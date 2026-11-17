@@ -67,10 +67,10 @@ jobs:
     # One runner, all hosts, in sequence. Each matrix job got a fresh runner with
     # a COLD nix store, so run 43418143255 re-downloaded the same shared NixOS
     # closure per host: kirito 5.4 GiB / 2262 paths and 227 derivations built
-    # from scratch, surface 5.3 GiB / 2255 paths and 222 derivations, while mail
-    # hit the cache for 0.0 KiB. The local store IS the cache: on one runner the
-    # 2nd and 3rd host reuse what the 1st fetched (run 43422438336 pulled 5.5 GiB
-    # once, then 176 MiB, and went 15m29s -> 6m29s).
+    # from scratch, while mail hit the cache for 0.0 KiB. The local store IS the
+    # cache: on one runner the 2nd host reuses what the 1st fetched
+    # (run 43422438336 pulled 5.5 GiB once, then 176 MiB, and went
+    # 15m29s -> 6m29s).
     #
     # Cross-run caching via cache-nix-action, NOT magic-nix-cache. GitHub's cache
     # allows 200 uploads/min/repo; magic-nix-cache pushed one entry per store path

@@ -63,7 +63,7 @@ A wrong value here means a server you cannot reach.
    `dkim_mail_private_key`, and the public half is a literal `TXT` in
    `hosts/mail/dns.nix`. Nothing about the zone depends on the host existing.
    Do **not** publish MTA-STS/TLSA yet.
-3. **A machine with Nix** for `nixos-anywhere` (kirito/surface).
+3. **A machine with Nix** for `nixos-anywhere` (kirito).
 4. **SSH key** already in the repo config (the `Github` ed25519 key at
    `modules.server.adminKeys`). Add more keys there if you need them.
 

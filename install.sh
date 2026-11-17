@@ -34,7 +34,7 @@ echo ""
 # Step 4: Test build
 echo "🔨 Testing configuration build..."
 echo "   This may take a while on first run..."
-nixos-rebuild build --flake ~/dotfiles/nixos-config#surface
+nixos-rebuild build --flake ~/dotfiles/nixos-config#kirito
 echo "✅ Build successful!"
 echo ""
 
@@ -42,11 +42,11 @@ echo ""
 echo "🚀 Applying configuration..."
 read -p "Ready to switch to new configuration? (y/n): " confirm
 if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-  sudo nixos-rebuild switch --flake ~/dotfiles/nixos-config#surface
+  sudo nixos-rebuild switch --flake ~/dotfiles/nixos-config#kirito
   echo "✅ Configuration applied!"
 else
   echo "⏭️  Skipped applying configuration. Run manually later:"
-  echo "   sudo nixos-rebuild switch --flake ~/dotfiles/nixos-config#surface"
+  echo "   sudo nixos-rebuild switch --flake ~/dotfiles/nixos-config#kirito"
 fi
 echo ""
 

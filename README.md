@@ -9,7 +9,6 @@ host enables it.
 | Host | Role | Notes |
 |---|---|---|
 | `kirito` | Workstation | 8 cores / 15 GB |
-| `surface` | Laptop | KDE Plasma |
 | `mail` | Mail server | netcup VPS, 1 GB RAM, encrypted root unlocked over the tailnet — see [hosts/mail/README.md](./hosts/mail/README.md) |
 
 `hosts/asuna/` exists but is intentionally inert (no `default.nix`, no hardware
@@ -18,8 +17,8 @@ config); it holds that machine's DNS records until it is migrated to NixOS.
 ## Build
 
 ```bash
-sudo nixos-rebuild switch --flake .#surface     # or kirito, mail
-home-manager switch --flake .#leoguy77@surface
+sudo nixos-rebuild switch --flake .#kirito     # or mail
+home-manager switch --flake .#leoguy77@kirito
 nix flake update
 nix flake check
 nix fmt
@@ -85,7 +84,7 @@ provisioning flow that makes an encrypted-root server possible.
 
 ```bash
 nix flake check                      # evaluate every host
-sudo nixos-rebuild build --flake .#surface   # build without switching
+sudo nixos-rebuild build --flake .#kirito    # build without switching
 sudo nixos-rebuild switch --rollback
 sudo nixos-rebuild list-generations
 ```

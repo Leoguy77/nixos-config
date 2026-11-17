@@ -31,12 +31,6 @@ _:
 
     # Host-specific addresses
     hostsAddr = {
-      surface = {
-        ipv4 = "192.168.3.100"; # Update with actual IP
-        ipv6 = ""; # Update with actual IPv6
-        iface = "wlan0"; # Update with actual interface
-      };
-
       # netcup VPS (pico G11s) — public mail server
       mail = {
         ipv4 = "91.132.147.216"; # /22
