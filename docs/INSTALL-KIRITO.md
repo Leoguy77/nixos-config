@@ -62,11 +62,16 @@ does not match is indistinguishable from a locked account at the login prompt:
 H=$(sops -d secrets/secrets.sops.yaml | sed -n 's/^leoguy77_password_hash: //p' | tr -d '"')
 S=$(echo "$H" | grep -oP '^\$6\$\K[^$]+')     # the salt
 read -rsp 'Password again: ' P3; echo
-[ "$(openssl passwd -6 -salt "$S" "$P3")" = "$H" ] && echo 'HASH OK' || echo 'MISMATCH'
+[ "$(printf '%s\n' "$P3" | mkpasswd -m sha-512 -S "$S" -s)" = "$H" ] && echo 'HASH OK' || echo 'MISMATCH'
 unset P3 H S
 
 git add secrets/secrets.sops.yaml
 ```
+
+`mkpasswd`, not `openssl passwd -6`: openssl is **not installed** on this machine,
+and the tool that made the hash is the honest one to reproduce it. Better still,
+use `scripts/verify-login-password.sh`, which does all of the above and
+distinguishes a wrong password (exit 1) from a broken setup (exit 2).
 
 `mkpasswd -m sha-512` produces `$6$…`, which is what `update-users-groups.pl`
 expects and what `login.nix` documents.
@@ -106,8 +111,11 @@ edit and no re-encryption. Copy it somewhere off the machine first — it is abo
 to be wiped:
 
 ```sh
-sudo cp /etc/ssh/ssh_host_ed25519_key     /run/media/$USER/usb/hostkey
-sudo cp /etc/ssh/ssh_host_ed25519_key.pub /run/media/$USER/usb/hostkey.pub
+# mount the stick first; /run/media/$USER/... only appears if udisks automounted it
+USB=/run/media/$USER/<label>            # e.g. /run/media/leoguy77/USB32
+
+sudo install -m 0600 /etc/ssh/ssh_host_ed25519_key     "$USB/hostkey"
+sudo install -m 0644 /etc/ssh/ssh_host_ed25519_key.pub "$USB/hostkey.pub"
 ```
 
 **B. Let it rotate (see step 5).** Nice for the thief scenario, but then nothing decrypts
@@ -161,19 +169,36 @@ nix --extra-experimental-features 'nix-command flakes' \
     --disk main /dev/nvme0n1 \
     --mode format \
     --write-efi-boot-entries \
-    --extra-files /run/media/nixos/usb/hostkey /etc/ssh/ssh_host_ed25519_key \
-    --extra-files /run/media/nixos/usb/hostkey /persist/etc/ssh/ssh_host_ed25519_key
+    --extra-files /mnt/usb/hostkey /persist/etc/ssh/ssh_host_ed25519_key
 ```
 
+- `/mnt/usb` is whatever you mounted the stick on. The stock ISO has **no
+  `udisks2`**, so nothing automounts it and `/run/media/...` may not exist:
+  ```sh
+  lsblk -o NAME,SIZE,LABEL          # find the stick's partition, e.g. sdb1
+  sudo mkdir -p /mnt/usb
+  sudo mount -o ro /dev/sdb1 /mnt/usb
+  ```
+- Exactly **one** `--extra-files`, targeting `/persist`, not `/etc`. impermanence's
+  `persist-…-etc-ssh-…` service bind-mounts it onto `/etc/ssh/…` **before**
+  `local-fs.target`, and sops-nix starts **after** it, so the `/etc` copy during
+  install would be shadowed a second later anyway. Do not pass the same source
+  twice: `--extra-files` stores its arguments in an associative array keyed by
+  SOURCE, so a duplicate silently keeps only the last destination.
+- `nixpkgs#disko` is **floating**. `disko-install` builds the format script from
+  its own `install-cli.nix` and reads only `disko.devices.disk` out of your flake,
+  so a running disko much newer than the pinned one can disagree with the declared
+  config. Pin it to the flake's own input if the format step misbehaves:
+  `nix run github:nix-community/disko/1dd30c29c88d99ce295f15e27f93c49bc5fbae07 -- …`
 - `--disk main` names the disko disk declaration (`disko.devices.disk.main`), and
   `/dev/nvme0n1` is **the whole disk** — confirm with `lsblk` first. Everything on
   it is destroyed, including the current `/home`.
-- `--mode format` partitions. Without it `disko-install` only mounts.
+- `--mode format` is the **default** (`disko-install` sets `diskoAttr=diskoScript`
+  up front). Passing it is harmless belt-and-braces, but the thing to be careful
+  about is the opposite: `--mode mount` reuses existing partitions instead of
+  partitioning.
 - `--write-efi-boot-entries` is needed because you are booting this same machine
   from that same disk. Omit it only if you are transplanting the disk.
-- The two `--extra-files` seed the host key both at `/etc/ssh` (so activation and
-  sops can read it) and at `/persist/etc/ssh` (`/` is tmpfs, so the `/etc` copy is
-  gone next boot). Option B above: skip both.
 
 To add a passphrase as a *third* way in afterwards (not needed, and it weakens
 the point of the token): `cryptsetup luksAddKey /dev/disk/by-partlabel/disk-main-root`.
