@@ -73,26 +73,32 @@ in
     # publishes, but asuna's records are declared next to asuna.
     ./dns.nix
     ../asuna/dns.nix
+    # Server role: composes the narrow server modules (remote LUKS unlock,
+    # key-only SSH, zram, fail2ban) into a baseline. Enables them via
+    # profiles/server.nix.
+    ../../profiles/server.nix
   ];
 
   # ── Server baseline (no desktop) ─────────────────────────────────────────
-  modules.server.enable = true;
-  modules.server.adminKeys = [
+  # The role profile (profiles/server.nix) switches on the narrow server
+  # modules; here we only supply the host-specific admin identity.
+  modules.accounts.adminKeys = [
     # One line covers every Token2 token: the OpenPGP auth subkey. Plus the
     # legacy 1Password key as a fallback for a machine with no card reader.
     myvars.ssh.key
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZ0JSHtQqJfwycHbi+qUTFO1CfmP5tiFIEWMeOpEP8l Github"
   ];
 
-  # The initrd host key is generated at build time (modules.server default). A
+  # The initrd host key is generated at build time (module default). A
   # committed one would be public either way — it lands in the world-readable
   # nix store and on the unencrypted /boot — so it only ever put a private key
   # in the git history without buying any secrecy.
 
   # Initrd SSH must never be reachable from the internet. That is handled by
-  # modules.server, which enables modules.initrdTailscale on every server host:
-  # tailscaled joins from the initrd (identity persisted on the ESP) and sshd
-  # binds the tailnet address only. No per-host wiring, no auth key once joined.
+  # modules.remoteUnlock, which enables modules.initrdTailscale on every server
+  # host: tailscaled joins from the initrd (identity persisted on the ESP) and
+  # sshd binds the tailnet address only. No per-host wiring, no auth key once
+  # joined.
 
   # ── Mail stack ───────────────────────────────────────────────────────────
   modules.mail.enable = true;
