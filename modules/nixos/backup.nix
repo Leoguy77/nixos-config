@@ -59,6 +59,46 @@ in
       '';
     };
 
+    sshKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default =
+        if config.modules.sops.enable && config.sops.secrets ? restic_ssh_key then
+          config.sops.secrets.restic_ssh_key.path
+        else
+          null;
+      defaultText = lib.literalExpression "config.sops.secrets.restic_ssh_key.path";
+      example = "config.sops.secrets.\"restic_ssh_key\".path";
+      description = ''
+        Private key restic uses to reach an `sftp:` repository.
+
+        A dedicated key, not the user's own: it only needs to read one
+        directory on one host, so restrict it on the far side
+        (`restrict ssh-ed25519 AAAA… restic`) and it cannot be reused
+        elsewhere. Leaking it costs a repository, not a shell.
+
+        Host verification uses `programs.ssh.knownHosts`, which writes the
+        global `/etc/ssh/ssh_known_hosts`. Pinning the fingerprint in the flake
+        beats TOFU state in root's home, which a reinstall would lose anyway.
+      '';
+    };
+
+    knownHost = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            hostNames = lib.mkOption { type = lib.types.listOf lib.types.str; };
+            publicKey = lib.mkOption { type = lib.types.str; };
+          };
+        }
+      );
+      default = null;
+      description = ''
+        The repository host's ed25519 host key, pinned into
+        `/etc/ssh/ssh_known_hosts`. Without it the first backup stops on an
+        unknown-host prompt that a systemd timer can never answer.
+      '';
+    };
+
     passwordFile = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -108,6 +148,14 @@ in
     # (restore, snapshots listing, etc.).
     environment.systemPackages = [ pkgs.restic ];
 
+    # Pin the repository host's key. One global attrset keyed by name, so hosts
+    # sharing a repository simply set the same entry.
+    programs.ssh.knownHosts = lib.mkIf (cfg.knownHost != null) {
+      restic-repository = {
+        inherit (cfg.knownHost) hostNames publicKey;
+      };
+    };
+
     # Fallback for scratch repositories. The generated value exists only on this
     # machine, so it cannot survive a reinstall or an ephemeral root, and the
     # snapshots it encrypts die with it. A real backup sets passwordFile to a
@@ -138,6 +186,16 @@ in
         initialize
         ;
       inherit (cfg) repository;
+
+      # sftp is driven by restic's own ssh invocation, so the key is passed as
+      # `-o sftp.args=…` rather than written into root's ssh config. Host
+      # verification needs nothing here: ssh reads the global
+      # `/etc/ssh/ssh_known_hosts` by default, which `programs.ssh.knownHosts`
+      # populates from `cfg.knownHost` above.
+      extraOptions = lib.optionals (cfg.sshKeyFile != null) [
+        "sftp.args='-i ${cfg.sshKeyFile} -o IdentitiesOnly=yes'"
+      ];
+
       passwordFile =
         if cfg.passwordFile != null then
           cfg.passwordFile

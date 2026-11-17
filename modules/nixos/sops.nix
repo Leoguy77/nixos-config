@@ -39,12 +39,21 @@ in
       (lib.mkIf config.modules.wireguard.enable {
         wg0_private_key = { };
       })
-      # The restic repository password. It has to come from sops rather than the
+      # The repository password. It has to come from sops rather than the
       # generated /var/backup/restic-password: a generated file cannot be
       # reproduced from the flake, so a reinstall or an ephemeral root destroys
       # the only copy and every existing snapshot becomes unreadable.
       (lib.mkIf config.modules.backup.enable {
         restic_password = { };
+      })
+      # The sftp key, kept separate from restic_password on purpose: rotating
+      # the password re-encrypts nothing but the repository key, while rotating
+      # this means re-authorising one line on the far side.
+      #
+      # Gated on the repository being remote, not on `sshKeyFile` — that option's
+      # default reads this very set, so testing it here is an infinite recursion.
+      (lib.mkIf (config.modules.backup.enable && lib.hasPrefix "sftp:" config.modules.backup.repository) {
+        restic_ssh_key = { };
       })
     ];
   };

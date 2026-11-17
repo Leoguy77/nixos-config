@@ -63,6 +63,21 @@
 
     modules.backup.enable = true;
     modules.backup.paths = [ "/home/${myvars.username}" ];
+    # Off-machine, on host1 (ts.aero-gaming.de). Per-host directory so a second
+    # desktop can share the box without mixing snapshot sets or retention.
+    #
+    # A local repository would be the disk protecting itself — on kirito it sat
+    # on the same ext4 partition as /home, so the reinstall that prompted this
+    # change would have deleted the data and its only copy together.
+    modules.backup.repository = "sftp:leoguy77@host1:/home/leoguy77/restic-repo/${config.networking.hostName}";
+    modules.backup.knownHost = {
+      hostNames = [
+        "host1"
+        "host1.tail4628f.ts.net"
+        "ts.aero-gaming.de"
+      ];
+      publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaqFLlTS/8HWt06khHhXeNwSLXC54uCVj2zHeD/Ol+2";
+    };
 
     # Firmware updates via fwupd (LVFS)
     services.fwupd.enable = true;
