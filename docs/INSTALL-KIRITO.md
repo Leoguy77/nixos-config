@@ -16,13 +16,62 @@ passwordless sudo, a writable root, and console autologin as `nixos`.
 
 ---
 
-## 0. Push the fix first
+## 0. Create the login password, then push
 
 The installer fetches `github:Leoguy77/nixos-config#kirito`, so it installs whatever
 is **pushed**, not what is in your working tree. The login credential
 (`modules/nixos/login.nix`) does not exist in any pushed commit yet, so installing
 before pushing reproduces the original bug: a machine that boots and then refuses
 every login.
+
+### 0a. Create `leoguy77_password_hash`
+
+`modules/nixos/login.nix` reads this secret and nothing else, so activation fails
+until it exists. It is **not** the mail password — deliberately a separate
+credential, so rotating one does not rotate the other.
+
+One hash covers every host this module is enabled on. That is on purpose: you are
+the same person at every keyboard, so the password should rotate once, not N
+times. (johnae/world does the same thing with a hardcoded hash in
+`profiles/admin-user/user.nix`; the only difference here is that it lives in sops
+because this repo is public.)
+
+```sh
+cd ~/Desktop/Code/nixos-config
+
+# -s keeps the password off the terminal, out of argv and out of shell history.
+read -rsp 'Password: ' P; echo
+read -rsp 'Again:    ' P2; echo
+[ "$P" = "$P2" ] || { echo mismatch; exit 1; }
+
+printf '%s\n' "$P" | mkpasswd -m sha-512 -s | tr -d '\n' \
+  | python3 -c 'import json,sys; sys.stdout.write(json.dumps(sys.stdin.read()))' \
+  | sops set --value-stdin secrets/secrets.sops.yaml '["leoguy77_password_hash"]'
+
+unset P P2
+```
+
+`--value-stdin` rather than `--value-file` or an argument: the plaintext never
+appears in `ps`, and this is the form that actually works (a `--value-file` path
+must point at a file whose contents sops can read, which is easy to get wrong).
+
+Then verify the stored hash accepts that password. Do not skip this — a hash that
+does not match is indistinguishable from a locked account at the login prompt:
+
+```sh
+H=$(sops -d secrets/secrets.sops.yaml | sed -n 's/^leoguy77_password_hash: //p' | tr -d '"')
+S=$(echo "$H" | grep -oP '^\$6\$\K[^$]+')     # the salt
+read -rsp 'Password again: ' P3; echo
+[ "$(openssl passwd -6 -salt "$S" "$P3")" = "$H" ] && echo 'HASH OK' || echo 'MISMATCH'
+unset P3 H S
+
+git add secrets/secrets.sops.yaml
+```
+
+`mkpasswd -m sha-512` produces `$6$…`, which is what `update-users-groups.pl`
+expects and what `login.nix` documents.
+
+### 0b. Push
 
 ```sh
 # from the running system, before you unplug anything
@@ -185,6 +234,7 @@ obviously wrong if it is not:
 - the login password is gone → `modules.login` is not doing its job
 - the tailnet shows a new node → `/var/lib/tailscale` was not persisted
 
-Log in as `leoguy77` with the password from `leon_password_hash`, then `sudo -i`.
+Log in as `leoguy77` with the password from `leoguy77_password_hash`, then `sudo -i`.
 `users.mutableUsers = false` means `passwd` will refuse — that is intended. To
-change the password, re-encrypt the sops secret and rebuild.
+change the password, repeat step 0a (same secret name, `sops set` overwrites) and
+`nixos-rebuild switch`.

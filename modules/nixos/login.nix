@@ -46,23 +46,35 @@ in
       default = myvars.username;
       description = ''
         Account that gets {option}`passwordSecret`. One account only: a hashed
-        password file carries a single hash, so a second user would silently end
-        up with the same password.
+        password file carries a single hash, so two users would silently end up
+        with the same password — a second account needs its own hash, which
+        means a second option, not a second name here.
       '';
     };
 
     passwordSecret = lib.mkOption {
       type = lib.types.str;
-      default = "leon_password_hash";
+      # Keyed by user, not by host: one human has one install password, and every
+      # host this module is enabled on reads the same secret. Same shape as
+      # johnae/world's profiles/admin-user/user.nix, which shares a single hash
+      # across all its hosts — the only change is keeping it in sops instead of
+      # hardcoding it in a public repo.
+      default = "${config.modules.login.passwordUser}_password_hash";
+      defaultText = lib.literalExpression ''"''${config.modules.login.passwordUser}_password_hash"'';
       description = ''
-        sops secret holding the `mkpasswd` hash (the full `$6$…` string). One
-        account only: a hashed password file carries a single hash, so a second
-        user would silently end up with the same password.
+        sops secret holding the `mkpasswd` hash (the full `$6$…` string) for
+        {option}`passwordUser`.
 
-        Reusing the mailserver's hash is deliberate — same human, so one
-        password, one secret, one thing to rotate. `hosts/mail` does not enable
-        this module: dovecot reads the hash itself, and the OS account there
-        logs in by key via {option}`modules.accounts`.
+        One password, all hosts. A workstation login is not a per-machine
+        credential — you are the same person at every keyboard, so rotating it
+        once should change it everywhere. Generating a per-host hash would mean
+        N secrets to rotate and N chances for one to drift into a lockout.
+
+        Deliberately *not* the mailserver's `leon_password_hash`. That one is an
+        IMAP credential that dovecot reads and restarts on; keeping your OS login
+        separate means rotating your laptop password does not silently change
+        your mail password, and a drifted mail hash cannot reinstall this machine
+        with a login nobody knows.
       '';
     };
 
@@ -90,6 +102,11 @@ in
 
     # Leave `mode` at sops-nix's 0400 default. The only reader is
     # users-groups.pl running as root, which can open a root-owned 0400 file.
+    #
+    # Setting the nested attribute is what *declares* the secret: sops.secrets is
+    # an attrsOf submodule, so this both creates the entry and flips the flag.
+    # Assigning `= { }` alongside it would be a second definition of the same
+    # dynamic attribute and fails to evaluate.
     sops.secrets.${cfg.passwordSecret}.neededForUsers = true;
   };
 }

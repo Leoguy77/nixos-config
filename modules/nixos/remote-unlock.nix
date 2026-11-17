@@ -35,6 +35,24 @@ in
       description = "Port the initrd SSH daemon (used for LUKS unlock) listens on.";
     };
 
+    authorizedKeys = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      # Explicit, rather than inheriting nixpkgs' default of
+      # `config.users.users.root.openssh.authorizedKeys.keys`: that couples the
+      # initrd unlock path to a root key in stage 2, so removing root's stage-2
+      # key (correct — `PermitRootLogin = "no"`) would strip the initrd's too and
+      # fail the build with "You should specify at least one authorized key for
+      # initrd SSH". Unlocking a disk is a different privilege from logging in as
+      # root on the running system; it gets its own option.
+      default = config.modules.accounts.adminKeys;
+      defaultText = lib.literalExpression "config.modules.accounts.adminKeys";
+      description = ''
+        Keys allowed to connect to the initrd for LUKS unlock. Defaults to
+        {option}`modules.accounts.adminKeys` — the same humans, a different
+        door. Only effective when {option}`initrdSsh` is on.
+      '';
+    };
+
     initrdSshHostKey = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
@@ -83,6 +101,7 @@ in
       # Exposure is bounded by modules.initrdTailscale below: tailnet address
       # only, port 2222, tag:fde-unlock. Never public.
       extraConfig = "PermitRootLogin yes";
+      inherit (cfg) authorizedKeys;
     };
 
     modules.initrdTailscale = {

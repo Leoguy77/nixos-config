@@ -1,4 +1,4 @@
-# Administrative account + root identity.
+# Administrative account.
 #
 # Single purpose: the set of keys and users that can administer this box.
 # Every other server module that needs "who is the admin" reads
@@ -22,7 +22,18 @@ in
     adminKeys = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "SSH public keys allowed to log in as root and as {option}`modules.accounts.mainUser`.";
+      description = ''
+        SSH public keys allowed to log in as {option}`modules.accounts.mainUser`.
+
+        Not root: `modules.sshd` sets `PermitRootLogin = "no"`, so a root key
+        here could never authenticate. `mainUser` is in `wheel` with passwordless
+        sudo, so root-by-key bought nothing anyway — same room, second door, and
+        one that leaves no sudo record of what ran.
+
+        The initrd sshd for encrypted-root unlock is a separate path with its own
+        keys ({option}`modules.remoteUnlock`); dropping root here does not affect
+        it.
+      '';
     };
 
     mainUser = lib.mkOption {
@@ -46,8 +57,6 @@ in
     # login.nix also setting `false`, merging would abort on a conflicting
     # definition of the same value.
     users.mutableUsers = lib.mkDefault false;
-
-    users.users.root.openssh.authorizedKeys.keys = cfg.adminKeys;
 
     users.users.${cfg.mainUser} = {
       isNormalUser = true;
