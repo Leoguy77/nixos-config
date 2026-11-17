@@ -27,8 +27,10 @@ vars/default.nix             # username, fullName, email, networking, signing ke
 modules/
 ├── nixos/                   # system modules, all option-bearing
 ├── home/                    # Home Manager: base/ tui/ gui/ + sops.nix
-├── disko/                   # disk layouts for nixos-anywhere
 └── iso/                     # per-host installer ISO
+profiles/                    # compositions a host opts into, no options of their own
+├── {server,desktop,laptop}.nix  # role
+└── disk/                    # disko layouts for nixos-anywhere
 secrets/secrets.sops.yaml    # encrypted (sops + sops-nix), committed
 scripts/deploy.sh            # install/upgrade any host via nixos-anywhere
 ```

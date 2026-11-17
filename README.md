@@ -38,7 +38,8 @@ flake.nix              # inputs, mkHost, devShell, checks, per-host installer IS
 hosts/<name>/          # default.nix + hardware-configuration.nix (+ home.nix, dns.nix)
 modules/nixos/         # system modules (option-bearing), auto-imported by scanPaths
 modules/home/          # Home Manager: base/ (headless) tui/ (terminal) gui/ (desktop)
-modules/disko/         # disk layouts for nixos-anywhere
+profiles/              # compositions a host opts into: {server,desktop,laptop}.nix
+profiles/disk/         # disk layouts for nixos-anywhere
 modules/iso/           # per-host installer ISO
 lib/default.nix        # scanPaths, publishDns
 vars/default.nix       # username, email, networking, signing keys

@@ -106,7 +106,7 @@ if ! DISKO_DEVICE="$(nix_eval config.disko.devices.disk.main.device)"; then
 	echo "   (no config.disko.devices.disk.main). A host can only be installed by" >&2
 	echo "   this script if its disk layout lives in the flake. Add to its imports:" >&2
 	echo "     inputs.disko.nixosModules.disko" >&2
-	echo "     ../../modules/disko/luks-btrfs-server.nix" >&2
+	echo "     ../../profiles/disk/luks-btrfs-server.nix" >&2
 	exit 1
 fi
 
@@ -124,7 +124,7 @@ echo "→ disko layout: $DISKO_DEVICE"
 if [ "$DISK" != "$DISKO_DEVICE" ]; then
 	echo "❌ $DISK requested, but the disko layout uses $DISKO_DEVICE." >&2
 	echo "   nixos-anywhere 1.x has no --disk override; change the device in" >&2
-	echo "   modules/disko/luks-btrfs-server.nix (or the host's own layout)." >&2
+	echo "   profiles/disk/luks-btrfs-server.nix (or the host's own layout)." >&2
 	exit 1
 fi
 

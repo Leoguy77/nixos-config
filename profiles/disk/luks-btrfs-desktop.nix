@@ -1,7 +1,7 @@
 _:
 
 # LUKS-encrypted BTRFS disk layout for nixos-anywhere.
-# Use: nixos-anywhere --disko modules/disko/luks-btrfs.nix --disk main DEVICE ...
+# Use: nixos-anywhere --disko profiles/disk/luks-btrfs-desktop.nix --disk main DEVICE ...
 #
 # Device is overridden by --disk main DEVICE.
 # LUKS password injected via --disk-encryption-keys /tmp/secret /tmp/luks-password.

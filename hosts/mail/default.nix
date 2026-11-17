@@ -67,7 +67,7 @@ in
     # with it, and `disko.devices.disk.main.device` below is what
     # `--disk main /dev/vda` overrides at install time.
     inputs.disko.nixosModules.disko
-    ../../modules/disko/luks-btrfs-server.nix
+    ../../profiles/disk/luks-btrfs-server.nix
     ./hardware-configuration.nix
     # The lsinfra.de zone, as declared records. Split by owning machine: mail
     # publishes, but asuna's records are declared next to asuna.

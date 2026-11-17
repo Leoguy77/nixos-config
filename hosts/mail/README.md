@@ -195,7 +195,7 @@ missing from the build.
 
 The disk device is **not** passed to nixos-anywhere: 1.x dropped `--disk main
 <dev>`, so `$DISK` is only asserted against `disko.devices.disk.main.device` and
-the layout in `modules/disko/luks-btrfs-server.nix` is authoritative. There is no
+the layout in `profiles/disk/luks-btrfs-server.nix` is authoritative. There is no
 `--disko` flag and no `--generate-hardware-config` either: the hardware file is
 committed and kept free of `fileSystems`, which disko owns — the script refuses
 to run if it finds `fileSystems` there.
