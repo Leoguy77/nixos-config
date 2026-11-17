@@ -90,14 +90,8 @@ in
       # (burning a retry, and the OpenPGP counter only has 3). The grab guards
       # against X-sniffing; not worth a bricked card on KDE/Wayland.
       grabKeyboardAndMouse = false;
-      # PIN cache for SSH signatures. 7.5 minutes is short enough that a
-      # walked-away-from session stops signing quickly, long enough to finish a
-      # git push without retyping. Touch is still required on every signature —
-      # UIF Auth=on is on the card, not negotiable from here.
-      defaultCacheTtlSsh = 450;
-      # gpg's own ceiling is 2 h; halved to 1 h so the window can't be slid
-      # indefinitely by keeping the session busy.
-      maxCacheTtlSsh = 3600;
+      # No cache TTLs set: gpg's defaults (600 s idle / 2 h max) apply. Touch
+      # is required on every signature anyway — UIF Sign=on lives on the card.
     };
 
     # Git configuration
