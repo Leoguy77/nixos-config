@@ -110,6 +110,18 @@ _:
                       "noatime"
                     ];
                   };
+
+                  # Where profiles/state.nix keeps the paths that must survive a
+                  # wiped root. Needed early: impermanence bind-mounts out of here
+                  # before local-fs.target, and the sops/age host key is one of
+                  # those files. Harmony with the rest of the mount options.
+                  "/persist" = {
+                    mountpoint = "/persist";
+                    mountOptions = [
+                      "compress=zstd:3"
+                      "noatime"
+                    ];
+                  };
                 };
               };
             };

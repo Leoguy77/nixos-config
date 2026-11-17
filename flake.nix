@@ -56,6 +56,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Opt-in impermanence: persist a declared set of paths across a wiped root.
+    # Only hosts that import profiles/state.nix pay for it.
+    impermanence = {
+      url = "github:nix-community/impermanence";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Declarative mail stack: Postfix + Dovecot + rspamd + DKIM, all in Nix.
     # GitLab, not GitHub (the GitHub repo is dead). Branch `main` tracks
     # nixos-unstable-small and reports mailserverRelease 26.11, matching this

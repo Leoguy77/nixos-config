@@ -35,8 +35,17 @@ in
     # try to decrypt a key it may not be a recipient of — activation fails and
     # the machine does not come up. With nothing declared here, turning
     # modules.sops on for a host is free until that host has a secret of its own.
-    sops.secrets = lib.mkIf config.modules.wireguard.enable {
-      wg0_private_key = { };
-    };
+    sops.secrets = lib.mkMerge [
+      (lib.mkIf config.modules.wireguard.enable {
+        wg0_private_key = { };
+      })
+      # The restic repository password. It has to come from sops rather than the
+      # generated /var/backup/restic-password: a generated file cannot be
+      # reproduced from the flake, so a reinstall or an ephemeral root destroys
+      # the only copy and every existing snapshot becomes unreadable.
+      (lib.mkIf config.modules.backup.enable {
+        restic_password = { };
+      })
+    ];
   };
 }

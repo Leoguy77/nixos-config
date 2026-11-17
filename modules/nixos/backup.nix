@@ -62,14 +62,16 @@ in
     passwordFile = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      example = "/run/secrets/restic_password";
+      example = "config.sops.secrets.\"restic_password\".path";
       description = ''
         Path to a file containing the restic repository password.
-        Recommended: point this at a sops secret, e.g.
-        config.sops.secrets."restic-password".path.
-        If null, a file is generated at /var/backup/restic-password on
-        first activation (local repositories only, not encrypted at rest
-        beyond file permissions).
+        Point this at a sops secret, e.g.
+        `config.sops.secrets."restic_password".path`.
+
+        If null, a password is generated at /var/backup/restic-password on
+        first activation. That file is NOT reproducible from the flake, so a
+        reinstall or an ephemeral root destroys it — and every snapshot in the
+        repository with it. Leave this null only for throwaway repositories.
       '';
     };
 
@@ -106,9 +108,10 @@ in
     # (restore, snapshots listing, etc.).
     environment.systemPackages = [ pkgs.restic ];
 
-    # Auto-generate a local password file when none is provided.
-    # Only meaningful for local repositories; remote users should supply
-    # passwordFile explicitly (ideally via sops).
+    # Fallback for scratch repositories. The generated value exists only on this
+    # machine, so it cannot survive a reinstall or an ephemeral root, and the
+    # snapshots it encrypts die with it. A real backup sets passwordFile to a
+    # sops secret.
     systemd.services.restic-password-init = lib.mkIf (cfg.passwordFile == null) {
       description = "Generate restic repository password if missing";
       wantedBy = [ "multi-user.target" ];
@@ -135,7 +138,13 @@ in
         initialize
         ;
       inherit (cfg) repository;
-      passwordFile = if cfg.passwordFile != null then cfg.passwordFile else "/var/backup/restic-password";
+      passwordFile =
+        if cfg.passwordFile != null then
+          cfg.passwordFile
+        else if config.modules.sops.enable && config.sops.secrets ? restic_password then
+          config.sops.secrets.restic_password.path
+        else
+          "/var/backup/restic-password";
       inherit (cfg) timerConfig;
     };
   };
