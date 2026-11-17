@@ -50,9 +50,6 @@ in
         unzip
         p7zip
 
-        # Network tools
-        networkmanagerapplet
-
         # Power management
         # caffeine-ng is managed via Home Manager services.caffeine in per-host home.nix
 

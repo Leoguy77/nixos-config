@@ -1,28 +1,19 @@
-# Security settings (sudo, polkit, seccomp)
-# Agenix secrets moved to modules/nixos/secrets.nix
+# Security extras: polkit + smart-card daemon.
+#
+# Single purpose: the desktop privilege/credential plumbing. Sudo lives in
+# accounts.nix (it belongs with the admin identity, not with polkit).
 {
   config,
   lib,
   ...
 }:
 
-let
-  cfg = config.modules.security;
-in
-
 {
   options.modules.security = {
-    enable = lib.mkEnableOption "security module";
-    sudo = lib.mkEnableOption "sudo access for wheel group";
+    enable = lib.mkEnableOption "polkit and smart-card support";
   };
 
-  config = lib.mkIf cfg.enable {
-    # Sudo configuration
-    security.sudo = lib.mkIf cfg.sudo {
-      enable = true;
-      wheelNeedsPassword = lib.mkDefault true;
-    };
-
+  config = lib.mkIf config.modules.security.enable {
     # Polkit for privilege escalation
     security.polkit.enable = lib.mkDefault true;
 

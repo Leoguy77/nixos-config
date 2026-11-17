@@ -25,8 +25,5 @@ in
     };
     boot.loader.efi.canTouchEfiVariables = lib.mkDefault cfg.efi;
     boot.loader.timeout = lib.mkDefault 3;
-
-    # Firmware
-    hardware.enableRedistributableFirmware = lib.mkDefault true;
   };
 }

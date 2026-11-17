@@ -44,6 +44,10 @@ in
       shell = cfg.userShell;
     };
 
+    # The user's shell is zsh; make sure it is installed and enabled so
+    # login works (see users.users.<name>.shell check above).
+    programs.zsh.enable = true;
+
     # Allow unfree packages
     nixpkgs.config.allowUnfree = true;
   };
