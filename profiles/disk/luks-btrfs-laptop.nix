@@ -14,9 +14,17 @@
 # (btrfs.readthedocs.io Swapfile; disko#651).
 #
 # Why two containers and not LVM on one: hibernation is already covered, so LVM
-# would add a layer without removing a step. systemd caches the passphrase in
-# the kernel keyring within one boot (crypttab's password-cache=yes is the
-# default), so the second container unlocks without a second prompt.
+# would add a layer without removing a step. Both containers are unlocked by the
+# same FIDO2 token, so both cost a tap — user presence is a fresh HMAC per
+# `cryptsetup open`, and the kernel keyring does not carry it across containers
+# the way it carries a passphrase. Only a PIN would be cached (crypttab's
+# password-cache=yes, 2.5 minutes), and both containers enroll tap-only
+# (--fido2-with-client-pin=no), so there is no PIN to cache: boot is two taps.
+#
+# Token-only, no passphrase slot: a passphrase keyslot is a second way in, and
+# the point of the token is that booting requires the hardware. The recovery
+# path is the recovery key disko prints once at install time (enrollRecovery),
+# which is why the install runbook makes you store it.
 #
 # Machine-specific numbers are NOT here. Sizes that depend on RAM live in each
 # host's hardware-configuration.nix, next to the rest of its machine facts.
@@ -82,8 +90,11 @@ in
               settings = {
                 allowDiscards = true;
                 bypassWorkqueues = true;
+                crypttabExtraOpts = [ "fido2-device=auto" ];
               };
-              passwordFile = "/tmp/luks-password";
+              enrollFido2 = true;
+              extraFido2EnrollArgs = [ "--fido2-with-client-pin=no" ];
+              passwordFile = null; # see the swap container
               content = {
                 type = "swap";
                 resumeDevice = true;
@@ -99,8 +110,14 @@ in
               settings = {
                 allowDiscards = true;
                 bypassWorkqueues = true;
+                crypttabExtraOpts = [ "fido2-device=auto" ];
               };
-              passwordFile = "/tmp/luks-password";
+              # Tap only, no PIN: the token is the factor. A PIN would make it
+              # tap+PIN on every boot for a machine that is already physically
+              # required to be present.
+              enrollFido2 = true;
+              extraFido2EnrollArgs = [ "--fido2-with-client-pin=no" ];
+              passwordFile = null; # see the swap container above
               content = {
                 type = "btrfs";
                 extraArgs = [ "-f" ];
