@@ -153,8 +153,11 @@ if [ -z "$KEY" ]; then
 		dev="/dev/mapper/localinstall-$$-$(basename "$p")"
 		# FIDO2-only containers (what this repo produces) prompt for a token tap
 		# here, not a passphrase — plug the Token2 in before running.
-		cryptsetup open --readonly --type luks2 "/dev/$p" "$(basename "$dev")" \
-			|| { echo "   could not open /dev/$p — no token tap?"; continue; }
+		cryptsetup open --readonly --type luks2 "/dev/$p" "$(basename "$dev")" ||
+			{
+				echo "   could not open /dev/$p — no token tap?"
+				continue
+			}
 		mp=$(mktemp -d)
 		if mount -o ro "$dev" "$mp" 2>/dev/null; then
 			if [ -s "$mp/etc/ssh/ssh_host_ed25519_key" ]; then
@@ -194,8 +197,9 @@ RECIPIENT=$(nix run nixpkgs#ssh-to-age -- -i "$WORK/hostkey.pub" 2>/dev/null) ||
 echo "→ recipient: $RECIPIENT"
 if [ -z "$ANCHOR" ]; then
 	echo "⚠  $HOST has no &$HOST anchor in .sops.yaml — it is not a secret recipient."
-	echo "   After install it boots, but every secret fails to decrypt until you run"
-	echo "   doc step 6 (\`sops updatekeys\`) from a machine holding a recipient."
+	echo "   Before installing, run this on a machine holding a recipient (the Token2):"
+	echo "       scripts/enroll-host-key.sh $HOST --out <dir>"
+	echo "   then install with --key <dir>/ssh_host_ed25519_key."
 	[ "$ALLOW_UNVERIFIED_KEY" = 1 ] ||
 		die "refusing to continue. Re-run with ALLOW_UNVERIFIED_KEY=1 if that is intended."
 elif [ "$RECIPIENT" != "$ANCHOR" ]; then
@@ -203,7 +207,8 @@ elif [ "$RECIPIENT" != "$ANCHOR" ]; then
    installer: $RECIPIENT
    .sops.yaml: $ANCHOR
    Installing would produce a machine that cannot decrypt its own secrets.
-   Use the key the secrets were encrypted to, or see doc step 6."
+   Use the key the secrets were encrypted to, or enrol this one first:
+       scripts/enroll-host-key.sh $HOST"
 else
 	echo "✓ matches the &$HOST anchor"
 fi

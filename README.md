@@ -24,10 +24,25 @@ nix flake check
 nix fmt
 ```
 
-Install or reinstall a host from scratch with the shared deploy script:
+Install or reinstall an existing host, either remotely or from the machine itself:
 
 ```bash
 nix develop .# --command scripts/deploy.sh <host> <user@address> [disk]
+nix run github:Leoguy77/nixos-config#install-locally -- <host>
+```
+
+Add a brand-new machine (three files, then the steps it prints):
+
+```bash
+scripts/new-host.sh <name> --role laptop|desktop|server
+```
+
+That defaults to the `deploy.sh` path, which mints and enrols the host key for
+you. A machine installed locally instead needs the key enrolled first, because
+the secrets must be encrypted to it *before* they are written to disk:
+
+```bash
+scripts/enroll-host-key.sh <name>     # asks for a Token2 tap
 ```
 
 ## Structure
@@ -45,6 +60,8 @@ lib/default.nix        # scanPaths, publishDns
 vars/default.nix       # username, email, networking, signing keys
 secrets/               # sops-encrypted secrets (committed) + README
 scripts/deploy.sh      # install/upgrade any host
+scripts/new-host.sh    # scaffold a new machine
+scripts/enroll-host-key.sh # make a host key a sops recipient
 docs/                  # module reference, commit signing, archive
 ```
 
