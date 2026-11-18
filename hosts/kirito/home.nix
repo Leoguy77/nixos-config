@@ -64,7 +64,4 @@
   # tried and rejected: the sops-nix user unit runs headless (no TTY for
   # pinentry), so every rebuild/reboot depended on the agent's PIN cache.
   # modules.home.sops.enable = true;
-
-  # Enable caffeine-ng service for system tray
-  services.caffeine.enable = true;
 }
