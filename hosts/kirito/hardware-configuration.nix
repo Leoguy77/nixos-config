@@ -12,6 +12,7 @@
   config,
   lib,
   modulesPath,
+  pkgs,
   ...
 }:
 
@@ -41,4 +42,15 @@
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
+  # Hardware video decode. The i5-10210U is Comet Lake (Gen9.5), which
+  # intel-media-driver supports (Broadwell and newer; intel-vaapi-driver is for
+  # anything older, and unmaintained). Without this the browser falls back to
+  # CPU decode — visible as high package power and fan noise on 1080p video.
+  # `vainfo` is here so the effect is checkable rather than assumed:
+  #   vainfo | grep -i vp8   → should list VLD entries
+  hardware.graphics.extraPackages = with pkgs; [
+    intel-media-driver
+    libva-utils # provides vainfo
+  ];
 }
