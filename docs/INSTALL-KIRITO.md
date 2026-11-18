@@ -9,7 +9,7 @@ Two things the stock image lacks, both solvable on the command line:
 | Gap | Why it matters | Fix |
 |---|---|---|
 | flakes are disabled (`nix.settings.experimental-features = []`) | every `nix build github:…` below fails with *"experimental Nix feature 'nix-command' is disabled"* | `--extra-experimental-features 'nix-command flakes'` |
-| `disko` is not installed (the other 11 tools — `cryptsetup`, `btrfs-progs`, `parted`, `gptfdisk`, `dosfstools`, `lvm2`, `util-linux`, `e2fsprogs` — all are) | `disko-install` does not exist | run it through `nix run` |
+| `disko` is not installed (the other 11 tools — `cryptsetup`, `btrfs-progs`, `parted`, `gptfdisk`, `dosfstools`, `lvm2`, `util-linux`, `e2fsprogs` — all are) | `disko-install` does not exist | `nix shell nixpkgs#disko -c disko-install` |
 
 Everything else the stock image already gives you: NetworkManager on DHCP, sshd,
 passwordless sudo, a writable root, and console autologin as `nixos`.
@@ -198,23 +198,29 @@ node, but its check is `ls /dev/hidraw*`, which also matches non-FIDO HID device
 ```sh
 cd /tmp
 nix --extra-experimental-features 'nix-command flakes' \
-    run nixpkgs#disko -- \
-    disko-install \
+    shell nixpkgs#disko -c disko-install \
     --flake github:Leoguy77/nixos-config#kirito \
     --disk main /dev/nvme0n1 \
-    --mode format \
     --write-efi-boot-entries \
     --extra-files /mnt/usb/hostkey /persist/etc/ssh/ssh_host_ed25519_key
 ```
 
-- `/mnt/usb` is wherever you mounted the stick's **EFI partition** (`sda2`, vfat).
+- **`nix shell nixpkgs#disko -c disko-install`, not `nix run`.** The package ships
+  **two** binaries, `bin/disko` and `bin/disko-install`. `nix run nixpkgs#disko`
+  picks the first and treats `disko-install` as its `disk-config` positional
+  argument, so it prints `disko`'s usage and exits — every flag you passed a
+  second later is silently dropped. `nix shell … -c` puts both on `PATH` and runs
+  the one you name.
   The ISO's main partition is `iso9660` and cannot be written; the stock ISO also
   has **no `udisks2`**, so nothing automounts any of it:
   ```sh
   lsblk -o NAME,SIZE,FSTYPE,LABEL   # sda1=iso9660 (ro), sda2=vfat EFIBOOT (rw)
   sudo mkdir -p /mnt/usb
-  sudo mount -o ro /dev/sda2 /mnt/usb
+  sudo mount -t vfat -o ro /dev/disk/by-label/EFIBOOT /mnt/usb
   ```
+  Use the **label**, not `/dev/sda2`: device letters in the live installer are not
+  guaranteed to match what the installed system showed, and `-t vfat` skips the
+  auto-detection step that is what actually fails on this partition.
 - Exactly **one** `--extra-files`, targeting `/persist`, not `/etc`. impermanence's
   `persist-…-etc-ssh-…` service bind-mounts it onto `/etc/ssh/…` **before**
   `local-fs.target`, and sops-nix starts **after** it, so the `/etc` copy during
@@ -225,14 +231,13 @@ nix --extra-experimental-features 'nix-command flakes' \
   its own `install-cli.nix` and reads only `disko.devices.disk` out of your flake,
   so a running disko much newer than the pinned one can disagree with the declared
   config. Pin it to the flake's own input if the format step misbehaves:
-  `nix run github:nix-community/disko/1dd30c29c88d99ce295f15e27f93c49bc5fbae07 -- …`
+  `nix shell github:nix-community/disko/1dd30c29c88d99ce295f15e27f93c49bc5fbae07 -c disko-install …`
 - `--disk main` names the disko disk declaration (`disko.devices.disk.main`), and
   `/dev/nvme0n1` is **the whole disk** — confirm with `lsblk` first. Everything on
   it is destroyed, including the current `/home`.
 - `--mode format` is the **default** (`disko-install` sets `diskoAttr=diskoScript`
-  up front). Passing it is harmless belt-and-braces, but the thing to be careful
-  about is the opposite: `--mode mount` reuses existing partitions instead of
-  partitioning.
+  up front). Omit it; the thing to be careful about is the opposite: `--mode mount`
+  reuses existing partitions instead of partitioning.
 - `--write-efi-boot-entries` is needed because you are booting this same machine
   from that same disk. Omit it only if you are transplanting the disk.
 
