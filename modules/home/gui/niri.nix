@@ -167,5 +167,22 @@ in
       playerctl # XF86Audio* media keys from niri's defaults
       xwayland-satellite # runs X11 apps; niri execs it by bare name on demand
     ];
+    # ── PolicyKit authentication agent ────────────────────────────────────
+    # A Wayland session gets no polkit agent for free: polkitd is a system
+    # service that only decides, and something in the session has to draw the
+    # password prompt. Plasma ships its own; niri does not, and the niri NixOS
+    # module has no polkit reference at all — so until now every privileged
+    # prompt was silently dropped.
+    #
+    # What still worked without it: mounting removable media, because
+    # org.freedesktop.udisks2.filesystem-mount is allow_active=yes. What did
+    # not: anything auth_admin — formatting a disk, most NetworkManager edits.
+    # Those fail with no dialog and no error the user can see, which is why this
+    # is worth fixing before cosmetics.
+    #
+    # polkit-gnome rather than hyprpolkitagent: it is the plain GTK agent, so a
+    # prompt does not drag in a Qt/Kirigami stack, and home-manager already has
+    # a module that declares the right systemd user unit.
+    services.polkit-gnome.enable = true;
   };
 }
