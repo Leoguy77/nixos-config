@@ -175,6 +175,36 @@
         }) isoHosts
       );
 
+      # `nix run github:Leoguy77/nixos-config#install-locally -- kirito`
+      # The stock ISO has no clone of this repo, so the installer has to arrive
+      # as a flake app. Only its own tools are pinned here — nix, nixos-install
+      # and disko come from the ISO or are fetched by the script, so this wrapper
+      # cannot pin an installer older than the layout it is installing.
+      apps.${system}.install-locally = {
+        type = "app";
+        program = toString (
+          pkgs.writeShellScript "install-locally" ''
+            export PATH=${
+              nixpkgs.lib.makeBinPath (
+                with pkgs;
+                [
+                  bashInteractive
+                  coreutils
+                  gnugrep
+                  gnused
+                  gawk
+                  util-linux
+                  cryptsetup
+                  openssh
+                  ssh-to-age
+                ]
+              )
+            }:$PATH
+            exec ${pkgs.bash}/bin/bash ${./scripts/install-locally.sh} "$@"
+          ''
+        );
+      };
+
       # Home Manager standalone configurations — only for hosts that actually
       # carry a home.nix (servers usually do not).
       homeConfigurations =
