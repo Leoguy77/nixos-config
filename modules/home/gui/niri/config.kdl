@@ -64,7 +64,9 @@ spawn-at-startup "swayidle" "-w" \
   "timeout" "600" "niri msg action power-off-monitors" \
   "before-sleep" "hyprlock"
 
-spawn-at-startup "mako"
+// Notifications are not spawned here: swaync is a systemd user service
+// (modules/home/gui/niri.nix, services.swaync). Both it and mako claim the
+// org.freedesktop.Notifications D-Bus name, so running both would just race.
 
 // niri draws no background of its own -- it has `background-color` per output
 // and nothing else (niri-config/src/lib.rs:748), so an image needs a separate
@@ -92,4 +94,10 @@ binds {
   // that key rather than erroring (niri-config/src/lib.rs:219-231).
   Mod+L hotkey-overlay-title="Lock" { spawn "hyprlock"; }
   Super+Alt+L hotkey-overlay-title="Lock" { spawn "hyprlock"; }
+
+  // Notification control centre. Mod+N is free in the default config (it binds
+  // Mod+M, Mod+V, Mod+Shift+V, but never Mod+N), so nothing is overridden.
+  Mod+N hotkey-overlay-title="Notifications" { spawn "swaync-client" "-t"; }
+  Mod+Shift+N hotkey-overlay-title="Do Not Disturb" { spawn "swaync-client" "-d"; }
+  Mod+Shift+C hotkey-overlay-title="Clear Notifications" { spawn "swaync-client" "-C"; }
 }

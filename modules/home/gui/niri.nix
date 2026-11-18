@@ -94,11 +94,17 @@ in
         ];
         modules-center = [ "clock" ];
         modules-right = [
+          "custom/swaync"
           "wireplumber"
           "backlight"
           "battery"
           "tray"
         ];
+
+        # Notification count, click to open the control centre. swaync-client
+        # --subscribe-waybar emits {text, alt, tooltip, class} JSON whenever the
+        # notification list changes, so this needs return-type = "json" and no
+        # interval.
 
         "niri/workspaces" = {
           format = "{index}";
@@ -134,6 +140,14 @@ in
           icon-size = 18;
           spacing = 8;
         };
+
+        "custom/swaync" = {
+          exec = "${pkgs.swaynotificationcenter}/bin/swaync-client -swb";
+          return-type = "json";
+          tooltip = true;
+          on-click = "${pkgs.swaynotificationcenter}/bin/swaync-client -t -sw";
+          on-click-right = "${pkgs.swaynotificationcenter}/bin/swaync-client -d -sw";
+        };
       };
 
       style = ''
@@ -164,6 +178,10 @@ in
 
         #clock, #wireplumber, #backlight, #battery, #tray { padding: 0 10px; }
 
+        #custom-swaync { padding: 0 10px; color: #a6adc8; }
+        #custom-swaync.dnd { color: #f38ba8; }
+        #custom-swaync.unread { color: #89b4fa; }
+
         #battery.warning { color: #f9e2af; }
         #battery.critical { color: #f38ba8; }
       '';
@@ -173,7 +191,6 @@ in
     home.packages = with pkgs; [
       fuzzel # Mod+D launcher
       swayidle # idle -> lock -> blank, plus lock before suspend
-      mako # notification daemon
       pavucontrol # mixer, opened from the bar
       brightnessctl # XF86MonBrightness* binds from niri's defaults
       playerctl # XF86Audio* media keys from niri's defaults
@@ -197,6 +214,88 @@ in
     # prompt does not drag in a Qt/Kirigami stack, and home-manager already has
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
+
+    # ── Notifications ─────────────────────────────────────────────────────
+    # swaync replaces mako. Both claim the `org.freedesktop.Notifications`
+    # D-Bus name, so exactly one can run; mako's spawn-at-startup line is gone
+    # from config.kdl and swaync is a systemd user service instead
+    # (PartOf/WantedBy config.wayland.systemd.target, which defaults to
+    # graphical-session.target — active under niri).
+    #
+    # What this buys over mako: a notification history (a notification you miss
+    # while the screen is locked is not lost), click-to-open control centre,
+    # and do-not-disturb. mako draws toasts and nothing else — it keeps no
+    # history at all, which is why a missed notification was simply gone.
+    services.swaync = {
+      enable = true;
+
+      # Only keys that differ from the packaged schema defaults are set. The
+      # defaults already are positionX=right, positionY=top, layer=overlay,
+      # layer-shell=true, so restating them would only add drift.
+      settings = {
+        control-center-width = 400;
+        notification-window-width = 360;
+
+        # 0 = never expire. Critical notifications are the ones an app
+        # explicitly marks as needing attention (a failed backup, a battery
+        # warning), so losing one silently would be the worst case.
+        timeout = 10;
+        timeout-critical = 0;
+
+        fit-to-screen = true;
+        hide-on-clear = false;
+
+        notification-icon-size = 48;
+        text-empty = "No notifications";
+      };
+
+      # swaync loads its packaged style.css as a base and then this file as an
+      # override at the same priority (src/functions.vala:92-127), so the ones
+      # that matter are the `:root` custom properties — everything downstream
+      # reads them through var(). That makes the theme ~25 lines instead of a
+      # 561-line copy of upstream's stylesheet.
+      #
+      # Catppuccin Mocha, matching the waybar/hyprlock palette: base #1e1e2e,
+      # surface0 #313244, surface1 #45475a, overlay0 #6c7086, text #cdd6f4,
+      # blue #89b4fa.
+      style = ''
+        :root {
+          --cc-bg: rgba(30, 30, 46, 0.96);
+          --noti-bg: 30, 30, 46;
+          --noti-bg-alpha: 0.96;
+          --noti-bg-darker: rgb(24, 24, 37);
+          --noti-bg-hover: rgb(49, 50, 68);
+          --noti-bg-focus: rgba(69, 71, 90, 0.7);
+          --noti-close-bg: rgb(69, 71, 90);
+          --noti-close-bg-hover: rgb(88, 91, 112);
+          --noti-border-color: rgba(137, 180, 250, 0.18);
+          --text-color: rgb(205, 214, 244);
+          --text-color-disabled: rgb(108, 112, 134);
+          --bg-selected: rgb(137, 180, 250);
+          --border-radius: 12px;
+        }
+
+        /* The control centre and notification cards inherit --cc-bg, but the
+           summary line is drawn with the link colour by default, which is a
+           jarring blue against this palette. */
+        .notification-content .summary {
+          color: var(--text-color);
+          font-weight: 600;
+        }
+
+        .notification-content .body {
+          color: rgb(166, 173, 200);
+        }
+
+        /* DND on: mark it loudly, because a silenced notification produces no
+           other feedback at all. */
+        .control-center .widget-title > button.dnd,
+        .control-center .widget-title > button.dnd:hover {
+          color: rgb(243, 139, 168);
+          border-color: rgb(243, 139, 168);
+        }
+      '';
+    };
     # ── Locker ──────────────────────────────────────────────────
     # hyprlock, not swaylock. swaylock draws a ring and nothing else -- no
     # password field, no text, no failed-attempt feedback; the ring IS the
