@@ -108,15 +108,34 @@ matters a lot:
 **A. Carry the current host key across (recommended).** The age recipient does not
 change, `secrets/secrets.sops.yaml` keeps decrypting, and there is no `.sops.yaml`
 edit and no re-encryption. Copy it somewhere off the machine first — it is about
-to be wiped:
+to be wiped.
+
+It cannot go on the ISO's main partition: `sda1` is `iso9660`, which is read-only
+by design, and `install` fails with *Read-only file system*. Every NixOS ISO
+carries a small **vfat EFI partition** (`sda2`, labelled `EFIBOOT`, 3 MB) which is
+writable and stays readable from the live system. That is where it goes:
 
 ```sh
-# mount the stick first; /run/media/$USER/... only appears if udisks automounted it
-USB=/run/media/$USER/<label>            # e.g. /run/media/leoguy77/USB32
+lsblk -o NAME,SIZE,FSTYPE,LABEL /dev/sda      # confirm sda1 = iso9660, sda2 = vfat
 
-sudo install -m 0600 /etc/ssh/ssh_host_ed25519_key     "$USB/hostkey"
-sudo install -m 0644 /etc/ssh/ssh_host_ed25519_key.pub "$USB/hostkey.pub"
+sudo mkdir -p /mnt/esp
+sudo mount /dev/sda2 /mnt/esp                 # writable, unlike sda1
+sudo install -m 0600 /etc/ssh/ssh_host_ed25519_key /mnt/esp/hostkey
+sudo umount /mnt/esp
 ```
+
+Only ~1.6 MB is free there, and the key is 399 bytes, so there is room. Verify the
+copy before you rely on it — this is the one file whose absence makes every secret
+on the new machine fail to decrypt:
+
+```sh
+nix shell nixpkgs#ssh-to-age -c \
+  ssh-to-age -private-key -i /mnt/esp/hostkey   # must equal the &kirito anchor in .sops.yaml
+# age1pr3nmcpwycezz3zc5w2ejgt7m2m46k38kufals8set4948hgss8q55vs9x
+```
+
+Under the live installer the same partition is `/dev/sda2` again — mount it there
+to hand the key to `--extra-files`.
 
 **B. Let it rotate (see step 5).** Nice for the thief scenario, but then nothing decrypts
 until you run `sops updatekeys` from another machine holding a `.sops.yaml`
@@ -128,7 +147,8 @@ Either way, take a restic snapshot first — `/home` is a persistent subvolume a
 ## 1. Boot the USB stick
 
 Write the stock ISO to the stick (`dd`, or Rufus/balenaEtcher on the Windows
-boxes). Boot it. You land on a `nixos` console with `sudo` and DHCP.
+boxes). Boot it — **the stick is already written**, so this is just the boot step.
+You land on a `nixos` console with `sudo` and DHCP.
 
 If you want to drive it from another machine instead of the laptop keyboard:
 
@@ -172,12 +192,13 @@ nix --extra-experimental-features 'nix-command flakes' \
     --extra-files /mnt/usb/hostkey /persist/etc/ssh/ssh_host_ed25519_key
 ```
 
-- `/mnt/usb` is whatever you mounted the stick on. The stock ISO has **no
-  `udisks2`**, so nothing automounts it and `/run/media/...` may not exist:
+- `/mnt/usb` is wherever you mounted the stick's **EFI partition** (`sda2`, vfat).
+  The ISO's main partition is `iso9660` and cannot be written; the stock ISO also
+  has **no `udisks2`**, so nothing automounts any of it:
   ```sh
-  lsblk -o NAME,SIZE,LABEL          # find the stick's partition, e.g. sdb1
+  lsblk -o NAME,SIZE,FSTYPE,LABEL   # sda1=iso9660 (ro), sda2=vfat EFIBOOT (rw)
   sudo mkdir -p /mnt/usb
-  sudo mount -o ro /dev/sdb1 /mnt/usb
+  sudo mount -o ro /dev/sda2 /mnt/usb
   ```
 - Exactly **one** `--extra-files`, targeting `/persist`, not `/etc`. impermanence's
   `persist-…-etc-ssh-…` service bind-mounts it onto `/etc/ssh/…` **before**
