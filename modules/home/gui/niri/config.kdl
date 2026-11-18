@@ -84,5 +84,12 @@ spawn-sh-at-startup "swaybg -i ~/.config/niri/wallpaper.png -m fill"
 binds {
   Mod+T hotkey-overlay-title="Terminal: kitty" { spawn "kitty"; }
   Mod+D hotkey-overlay-title="Launcher: fuzzel" { spawn "fuzzel"; }
+
+  // Win+L, like Windows. `Mod` is the compositor modifier (Mod4/Logo by
+  // default), so this is Meta+L. The default config binds Mod+L to
+  // focus-column-right, but Mod+Right is the same action (default-config.kdl
+  // :406,:410), so nothing is lost. A `binds {}` entry replaces the bind for
+  // that key rather than erroring (niri-config/src/lib.rs:219-231).
+  Mod+L hotkey-overlay-title="Lock" { spawn "hyprlock"; }
   Super+Alt+L hotkey-overlay-title="Lock" { spawn "hyprlock"; }
 }
