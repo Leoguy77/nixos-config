@@ -139,8 +139,12 @@ Verify the copy before you rely on it — this is the one file whose absence mak
 every secret on the new machine fail to decrypt:
 
 ```sh
+# The recipient comes from the PUBLIC key. `-private-key` prints the identity
+# instead (`AGE-SECRET-KEY-1…`), which is what sops-nix feeds to age at boot —
+# useful, but not comparable to the anchor in .sops.yaml.
+ssh-keygen -y -f /mnt/other-stick/hostkey > /mnt/other-stick/hostkey.pub
 nix shell nixpkgs#ssh-to-age -c \
-  ssh-to-age -private-key -i /mnt/other-stick/hostkey
+  ssh-to-age -i /mnt/other-stick/hostkey.pub
 # must equal the &kirito anchor in .sops.yaml
 # age1pr3nmcpwycezz3zc5w2ejgt7m2m46k38kufals8set4948hgss8q55vs9x
 ```
@@ -229,9 +233,41 @@ DISKO_SKIP_SWAP=1 nix shell nixpkgs#disko -c disko \
     --flake github:Leoguy77/nixos-config#kirito \
     --root-mountpoint /mnt
 
+# 1. Where the sops/age identity has to live for an EPHEMERAL root. `neededForUsers`
+#    secrets (the login password) are decrypted by sops-nix's `setupSecretsForUsers`
+#    ACTIVATION SCRIPT, and NixOS runs activation from the initrd —
+#    initrd-nixos-activation does `exec chroot /sysroot …/prepare-root` because
+#    users must exist before any stage-2 unit starts. impermanence's
+#    /persist/etc/ssh → /etc/ssh bind mount happens LATER, so only the persisted
+#    path is readable at that point. profiles/state.nix therefore adds
+#    /persist/etc/ssh/ssh_host_ed25519_key to sops.age.sshKeyPaths; without this
+#    copy the users step fails with "0 successful groups required, got 0", no
+#    password reaches /etc/shadow, and the machine boots to an unusable greeter.
 mkdir -p /mnt/persist/etc/ssh
 cp /root/hostkey /mnt/persist/etc/ssh/ssh_host_ed25519_key
 chmod 600 /mnt/persist/etc/ssh/ssh_host_ed25519_key
+
+# 2. Belt and braces for the /etc path. Not what the fix depends on: with
+#    profiles/state.nix pointing sops.age.sshKeyPaths at /persist/etc/ssh/…, the
+#    install-time activation (which chroots into /mnt, where /persist IS mounted)
+#    already finds the key. This copy only matters for a stage-2 service reading
+#    /etc/ssh/ssh_host_ed25519_key after impermanence's bind mount.
+mkdir -p /mnt/etc/ssh
+cp /root/hostkey /mnt/etc/ssh/ssh_host_ed25519_key
+chmod 600 /mnt/etc/ssh/ssh_host_ed25519_key
+
+# 3. Prove those two copies are the key the secrets were re-encrypted to,
+#    BEFORE spending the install on it. A mismatch means nothing decrypts, the
+#    password hash never reaches /etc/shadow, and the machine boots to a greeter
+#    nobody can log into — the failure that looks like a broken flake.
+#
+#    Compare the RECIPIENT, which is derived from the public key. With
+#    `-private-key` ssh-to-age prints the identity instead (AGE-SECRET-KEY-1…),
+#    which is exactly what sops-nix hands to age at boot and is NOT the anchor.
+ssh-keygen -y -f /root/hostkey > /root/hostkey.pub
+nix shell nixpkgs#ssh-to-age -c ssh-to-age -i /root/hostkey.pub
+# must equal the &kirito anchor in .sops.yaml:
+# age1pr3nmcpwycezz3zc5w2ejgt7m2m46k38kufals8set4948hgss8q55vs9x
 
 nixos-install \
     --flake github:Leoguy77/nixos-config#kirito \
@@ -269,11 +305,14 @@ nixos-install \
   bootloader step. Verified for this host: `boot.loader.systemd-boot.enable = true`,
   `grub = false`, `efi.canTouchEfiVariables = true`, `efiSysMountPoint = "/boot"` —
   so the NVRAM entry is written without any extra flag.
-- The host key goes to `/mnt/persist/etc/ssh/` by plain `cp` before
-  `nixos-install`. `disko-install --extra-files` did the same thing
+- The host key is copied by plain `cp` to **two** places before `nixos-install`:
+  `/mnt/persist/etc/ssh/` (first boot, via impermanence) and `/mnt/etc/ssh/`
+  (the install itself, because `setupSecretsForUsers` runs as an activation
+  script inside the chroot and decrypts with `/etc/ssh/ssh_host_ed25519_key`).
+  `disko-install --extra-files` did the same thing
   (`cp -ar "$source" "$mountPoint/$destination"`, line 278 of
-  `.disko-install-wrapped`); doing it by hand is one line and removes the
-  argument-collapsing trap described next.
+  `.disko-install-wrapped`); doing it by hand is one line per destination and
+  removes the argument-collapsing trap described next.
 - If you ever do go back to `--extra-files`: pass **one** pair, targeting
   `/persist`, and never the same SOURCE twice. It stores its arguments in an
   associative array keyed by SOURCE, so a duplicate silently keeps only the last

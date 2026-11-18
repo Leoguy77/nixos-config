@@ -44,6 +44,26 @@
   # that boots with no secrets.
   fileSystems."/persist".neededForBoot = true;
 
+  # The sops/age identity must be readable where the "users" activation runs, and
+  # that is NOT /etc/ssh. `neededForUsers` secrets (the login password hash) are
+  # decrypted by sops-nix's `setupSecretsForUsers` ACTIVATION SCRIPT, and NixOS
+  # runs activation from the initrd — `initrd-nixos-activation` does
+  # `exec chroot /sysroot "$closure/prepare-root"` because users must exist before
+  # any stage-2 unit starts. At that point impermanence's `/persist/etc/ssh →
+  # /etc/ssh` bind mount has not happened yet, so the /etc path from
+  # modules/nixos/sops.nix does not exist and sops fails with
+  #   "Error getting data key: 0 successful groups required, got 0"
+  # followed by "password file /run/secrets-for-users/… does not exist" — and the
+  # greeter then has no password to check, i.e. a machine that boots fine, serves
+  # SSH by key, and cannot be logged into. /persist IS mounted by then (disko
+  # gives it neededForBoot), so the persisted copy is the one that works.
+  #
+  # Both paths are kept: this one covers the initrd activation (and the
+  # nixos-install activation, which chroots the same way), the /etc one covers
+  # stage-2 services. `age.sshKeyPaths` is a list option, so the definitions
+  # merge, and a missing path only produces a warning.
+  sops.age.sshKeyPaths = [ "/persist/etc/ssh/ssh_host_ed25519_key" ];
+
   environment.persistence."/persist" = {
     hideMounts = true;
 
