@@ -23,22 +23,36 @@
 set -euo pipefail
 
 NAME="${1:-}"
-ROLE="${2:-}"; [ "${ROLE:-}" = "--role" ] && ROLE="${3:-}"; ROLE="${ROLE:-laptop}"
+ROLE="${2:-}"
+[ "${ROLE:-}" = "--role" ] && ROLE="${3:-}"
+ROLE="${ROLE:-laptop}"
 FLAKE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="$FLAKE_DIR/hosts/$NAME"
 
-die() { echo "❌ $*" >&2; exit 1; }
+die() {
+	echo "❌ $*" >&2
+	exit 1
+}
 
 [ -n "$NAME" ] || die "usage: $0 <name> [--role laptop|desktop|server]"
-[[ "$NAME" =~ ^[a-z0-9]([a-z0-9_-]{0,61}[a-z0-9])?$ ]] \
-	|| die "\"$NAME\" is not a valid hostName (lowercase alnum, - and _, no leading _)"
+[[ "$NAME" =~ ^[a-z0-9]([a-z0-9_-]{0,61}[a-z0-9])?$ ]] ||
+	die "\"$NAME\" is not a valid hostName (lowercase alnum, - and _, no leading _)"
 [ -e "$DIR" ] && die "hosts/$NAME already exists"
 
 case "$ROLE" in
-	laptop)  PROFILE="../../profiles/laptop.nix"; KIND="laptop" ;;
-	desktop) PROFILE="../../profiles/desktop.nix"; KIND="desktop" ;;
-	server)  PROFILE="../../profiles/server.nix";  KIND="server" ;;
-	*) die "unknown role: $ROLE (laptop|desktop|server)" ;;
+laptop)
+	PROFILE="../../profiles/laptop.nix"
+	KIND="laptop"
+	;;
+desktop)
+	PROFILE="../../profiles/desktop.nix"
+	KIND="desktop"
+	;;
+server)
+	PROFILE="../../profiles/server.nix"
+	KIND="server"
+	;;
+*) die "unknown role: $ROLE (laptop|desktop|server)" ;;
 esac
 
 mkdir -p "$DIR"
@@ -48,7 +62,7 @@ mkdir -p "$DIR"
 # role profile; a host that needs more opts in with one line per service, which
 # is the point of the narrow-module split.
 if [ "$KIND" = server ]; then
-	cat > "$DIR/default.nix" <<EOF
+	cat >"$DIR/default.nix" <<EOF
 {
   mylib,
   ...
@@ -64,7 +78,7 @@ if [ "$KIND" = server ]; then
 }
 EOF
 else
-	cat > "$DIR/default.nix" <<EOF
+	cat >"$DIR/default.nix" <<EOF
 {
   mylib,
   ...
@@ -100,7 +114,7 @@ fi
 # disko generates those from profiles/disk/, and defining them twice stops
 # every evaluation on a conflict.
 if [ "$KIND" = server ]; then
-	cat > "$DIR/hardware-configuration.nix" <<'EOF'
+	cat >"$DIR/hardware-configuration.nix" <<'EOF'
 # Run `nixos-generate-config` on the machine and replace this file with its
 # output, then DELETE the `fileSystems` and `swapDevices` blocks — the disko
 # layout in profiles/disk/ owns them and defining them twice is a hard error.
@@ -111,7 +125,7 @@ if [ "$KIND" = server ]; then
 }
 EOF
 else
-	cat > "$DIR/hardware-configuration.nix" <<'EOF'
+	cat >"$DIR/hardware-configuration.nix" <<'EOF'
 # Run `nixos-generate-config` on the machine and replace this file with its
 # output, then DELETE the `fileSystems` and `swapDevices` blocks — the disko
 # layout in profiles/disk/ owns them and defining them twice is a hard error.

@@ -51,6 +51,29 @@ SOPS_FILE="$FLAKE_DIR/secrets/secrets.sops.yaml"
 command -v sops >/dev/null 2>&1 || die "sops is not on PATH — run inside \`nix develop .#\`"
 [ -d "$FLAKE_DIR/hosts/$HOST" ] || die "hosts/$HOST does not exist — run scripts/new-host.sh first"
 
+# The card holds SUBKEYS only (verified with `gpg --card-status --with-colons`:
+# it reports the three subkey fingerprints and not the master). sops names the
+# master in .sops.yaml, and gpg cannot build a key hierarchy out of a subkey, so
+# without the master public key in the keyring decryption fails with "No secret
+# key" even with the token plugged in. The public key is committed for exactly
+# this reason, so import it rather than making the caller remember to.
+step "checking the PGP recipient is in the keyring"
+PGP_KEYS=$(awk '/^  - &/{v=$NF} v ~ /^[0-9A-F]{16,40}$/{print v}' "$SOPS_YAML" | sort -u)
+for k in $PGP_KEYS; do
+	if gpg --list-keys "$k" >/dev/null 2>&1; then
+		echo "→ $k already present"
+		continue
+	fi
+	pub=$(find "$FLAKE_DIR/hosts" -name '*.asc' -o -name '*.gpg' 2>/dev/null | head -1)
+	[ -n "$pub" ] || die "$k is not in the keyring and no public key file is in the repo
+   to import. gpg has no way to read it off the card either — the card only
+   carries subkeys. Add the public key under hosts/<h>/wkd/ or run
+   `gpg --recv-keys $k`."
+	gpg --import "$pub" >/dev/null 2>&1 || die "could not import $pub"
+	gpg --list-keys "$k" >/dev/null 2>&1 || die "imported $pub but $k is still missing"
+	echo "→ imported $k from ${pub#$FLAKE_DIR/}"
+done
+
 KEY_DIR="${OUT:-$(mktemp -d)}"
 mkdir -p "$KEY_DIR"
 KEY_FILE="$KEY_DIR/ssh_host_ed25519_key"
