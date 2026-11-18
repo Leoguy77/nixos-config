@@ -31,6 +31,15 @@
     i18n.defaultLocale = lib.mkDefault myvars.system.defaultLocale;
     console.keyMap = lib.mkDefault myvars.system.keymap;
 
+    # The console keymap above does NOT reach X11 or Wayland. Without this the
+    # X server stays on its "us" default while the console is "de", which is
+    # invisible in a Plasma Wayland session (KWin applies kxkbrc itself) but
+    # wrong at SDDM, in xrdp sessions, and on a fresh install before KDE has
+    # written its own keyboard config. Verified on kirito:
+    #   /etc/X11/xorg.conf.d/00-keyboard.conf  Option "XkbLayout" "us"
+    #   /etc/vconsole.conf                     KEYMAP=de
+    services.xserver.xkb.layout = lib.mkDefault myvars.system.keymap;
+
     i18n.extraLocaleSettings = lib.mkIf config.modules.locale.germanSubLocales {
       LC_ADDRESS = lib.mkDefault "de_DE.UTF-8";
       LC_IDENTIFICATION = lib.mkDefault "de_DE.UTF-8";
