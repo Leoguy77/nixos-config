@@ -29,6 +29,13 @@ let
   # the compositor version. Symlinked next to config.kdl and pulled in by a
   # relative `include`.
   defaultConfig = "${pkgs.niri.doc}/share/doc/niri/default-config.kdl";
+
+  # OS wallpaper from nixos-artwork, the same set the NixOS installer offers.
+  # `gnomeFilePath` rather than `kdeFilePath`: both point at the same PNG, but
+  # the gnome one is a stable `share/backgrounds/...` path, while the kde one
+  # lives under a per-wallpaper `share/wallpapers/<name>/contents/images/`
+  # layout that is an implementation detail of Plasma's wallpaper plugin.
+  wallpaper = pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath;
 in
 {
   options.modules.home.desktops.niri.enable =
@@ -41,7 +48,7 @@ in
     # the whole point: tuning the compositor is the one thing done dozens of
     # times in a row, and a store-path config forces a full nixos-rebuild switch
     # per attempt. Out of store, an edit goes live on
-    # `niri msg action reload-config`.
+    # `niri msg action load-config-file`.
     #
     # The absolute path is unavoidable -- a store symlink cannot point into the
     # working tree any other way -- so it is derived from homeDirectory rather
@@ -59,6 +66,12 @@ in
       # config as opened (~/.config/niri/), even through the symlink above
       # (verified against niri-config/src/lib.rs:345-380).
       "niri/default-config.kdl".source = defaultConfig;
+
+      # Wallpaper, symlinked to a stable name so config.kdl can just point
+      # swaybg at `~/.config/niri/wallpaper.png`. A literal store path in an
+      # out-of-store file would go stale on every nixpkgs bump; this one is
+      # re-pointed by home-manager.
+      "niri/wallpaper.png".source = wallpaper;
     };
 
     # ── Bar ───────────────────────────────────────────────────────────────
@@ -166,6 +179,7 @@ in
       brightnessctl # XF86MonBrightness* binds from niri's defaults
       playerctl # XF86Audio* media keys from niri's defaults
       xwayland-satellite # runs X11 apps; niri execs it by bare name on demand
+      swaybg # draws the wallpaper; see the note in config.kdl
     ];
     # ── PolicyKit authentication agent ────────────────────────────────────
     # A Wayland session gets no polkit agent for free: polkitd is a system

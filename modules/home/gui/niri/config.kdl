@@ -59,6 +59,18 @@ spawn-at-startup "swayidle" "-w" \
 
 spawn-at-startup "mako"
 
+// niri draws no background of its own -- it has `background-color` per output
+// and nothing else (niri-config/src/lib.rs:748), so an image needs a separate
+// layer-shell client. swaybg is that client and does exactly one thing.
+//
+// `spawn-sh-at-startup` rather than `spawn-at-startup` for this one, because
+// the path goes through `~`: `spawn-at-startup` execs directly with no shell
+// (niri/src/utils/spawning.rs:66-84) and would hand swaybg a literal `~`. The
+// `-sh-` variant (niri-config/src/lib.rs:213) wraps it in `sh -c`, which is
+// what expands it. Everything else here is a bare command name and does not
+// need the shell.
+spawn-sh-at-startup "swaybg -i ~/.config/niri/wallpaper.png -m fill"
+
 // -- Overrides -------------------------------------------------------------
 // The defaults bind Mod+T to alacritty and Mod+D to fuzzel already; only the
 // terminal differs (alacritty is not installed here).
