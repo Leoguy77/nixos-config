@@ -171,9 +171,10 @@ let
   # has an nginx vhost that redirects every path to webmail, and a second
   # meaning for /.well-known there would collide with it.
   wkdDomain = "openpgpkey.${cfg.domain}";
-  # Keys live with the mail host's data, not in this module's directory: this
-  # is per-host content, and the module is shared.
-  wkdKeysDir = ../../hosts/mail/wkd;
+  # Keys live under keys/, not in this module's directory or a host's: the
+  # public key belongs to the user, not to the mail host. The mail host only
+  # publishes it.
+  wkdKeysDir = ../../keys;
   wkdSite = pkgs.runCommand "wkd-site" { nativeBuildInputs = [ pkgs.gnupg ]; } ''
     export GNUPGHOME=$(mktemp -d)
     chmod 700 "$GNUPGHOME"

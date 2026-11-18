@@ -39,8 +39,14 @@ HOST="${1:-}"
 OUT=""
 [ "${2:-}" = "--out" ] && OUT="${3:-}"
 
-die()  { echo "❌ $*" >&2; exit 1; }
-step() { echo; echo "── $* ──"; }
+die() {
+	echo "❌ $*" >&2
+	exit 1
+}
+step() {
+	echo
+	echo "── $* ──"
+}
 
 [ -n "$HOST" ] || die "usage: $0 <host> [--out DIR]"
 FLAKE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -64,11 +70,11 @@ for k in $PGP_KEYS; do
 		echo "→ $k already present"
 		continue
 	fi
-	pub=$(find "$FLAKE_DIR/hosts" -name '*.asc' -o -name '*.gpg' 2>/dev/null | head -1)
+	pub=$(find "$FLAKE_DIR/keys" -name '*.asc' -o -name '*.gpg' 2>/dev/null | head -1)
 	[ -n "$pub" ] || die "$k is not in the keyring and no public key file is in the repo
    to import. gpg has no way to read it off the card either — the card only
-   carries subkeys. Add the public key under hosts/<h>/wkd/ or run
-   `gpg --recv-keys $k`."
+   carries subkeys. Add the public key under keys/ or run:
+       gpg --recv-keys $k"
 	gpg --import "$pub" >/dev/null 2>&1 || die "could not import $pub"
 	gpg --list-keys "$k" >/dev/null 2>&1 || die "imported $pub but $k is still missing"
 	echo "→ imported $k from ${pub#$FLAKE_DIR/}"

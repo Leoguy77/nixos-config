@@ -59,6 +59,7 @@ modules/iso/           # per-host installer ISO
 lib/default.nix        # scanPaths, publishDns
 vars/default.nix       # username, email, networking, signing keys
 secrets/               # sops-encrypted secrets (committed) + README
+keys/                  # public keys that are committed on purpose (PGP .asc)
 scripts/deploy.sh      # install/upgrade any host
 scripts/new-host.sh    # scaffold a new machine
 scripts/enroll-host-key.sh # make a host key a sops recipient
