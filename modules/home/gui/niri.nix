@@ -192,6 +192,7 @@ in
       fuzzel # Mod+D launcher
       swayidle # idle -> lock -> blank, plus lock before suspend
       pavucontrol # mixer, opened from the bar
+      libnotify # notify-send, for testing swaync from a shell
       brightnessctl # XF86MonBrightness* binds from niri's defaults
       playerctl # XF86Audio* media keys from niri's defaults
       xwayland-satellite # runs X11 apps; niri execs it by bare name on demand
