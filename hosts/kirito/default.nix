@@ -9,6 +9,10 @@
     ./hardware-configuration.nix
     # Laptop role: the shared desktop stack + battery-aware power management.
     ../../profiles/laptop.nix
+    # The desktop environment itself. Exactly one file from profiles/desktops/ —
+    # the role above carries everything that is NOT the DE, so switching this
+    # line is the whole change when trying Niri or Hyprland.
+    ../../profiles/desktops/plasma.nix
     # Ephemeral root: / is tmpfs, and only what profiles/state.nix names survives
     # a reboot. Opted in here rather than in the laptop role — the machine that
     # tolerates it is a per-host judgement, not a property of running on battery.

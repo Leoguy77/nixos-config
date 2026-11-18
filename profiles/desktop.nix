@@ -51,9 +51,13 @@
     modules.fonts.enable = true;
     modules.networkmanager.enable = true;
 
-    # The desktop stack: display server, desktop environment, audio.
-    modules.x11.enable = true;
-    modules.plasma.enable = true;
+    # Audio is not a desktop environment: every graphical host needs it,
+    # whichever compositor draws the windows, so it stays in the shared stack.
+    #
+    # The DESKTOP itself (X11/Plasma, Niri, Hyprland) is no longer set here —
+    # each host imports exactly one file from profiles/desktops/. Keeping it in
+    # this profile made the desktop environment impossible to change without
+    # editing a file every host shares.
     modules.pipewire.enable = true;
 
     modules.packages.enable = true;

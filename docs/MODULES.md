@@ -29,6 +29,7 @@ modules/
 └── iso/                     # per-host installer ISO
 profiles/                    # compositions a host opts into, no options of their own
 ├── {server,desktop,laptop}.nix  # role
+├── desktops/                # the DE itself: import exactly one file
 └── disk/                    # disko layouts for nixos-anywhere
 secrets/secrets.sops.yaml    # encrypted (sops + sops-nix), committed
 scripts/deploy.sh            # install/upgrade any host via nixos-anywhere
@@ -42,29 +43,48 @@ so a host is buildable the moment that file exists. A directory **without**
 
 | File | Option root | Notable sub-options |
 |---|---|---|
-| `server.nix` | `modules.server` | `enable`, `adminKeys`, `mainUser`, `initrdSsh`, `initrdSshPort`, `initrdSshHostKey`, `zramPercent` |
-| `boot.nix` | `modules.boot` | `enable`, `systemdBoot`, `efi` |
-| `system.nix` | `modules.system` | `enable`, `hostName`, `timeZone`, `locale`, `keymap` |
-| `services.nix` | `modules.services` | `enable`, `plasma`, `pipewire`, `printing`, `ssh`, `rdp`, `autoCpufreq`, `tailscale` |
-| `packages.nix` | `modules.packages` | `enable`, `extraPackages` |
-| `users.nix` | `modules.users` | `enable`, `mainUser`, `userShell` |
-| `security.nix` | `modules.security` | `enable`, `sudo` |
-| `onepassword.nix` | `modules.onepassword` | `enable`, `polkitOwners` |
-| `sops.nix` | `modules.sops` | `enable` |
-| `wireguard.nix` | `modules.wireguard` | `enable`, `address`, `dns`, `dnsSearch`, `dnsPriority` |
-| `initrd-tailscale.nix` | `modules.initrdTailscale` | `enable`, `port`, `stateMountPoint`, `stateDevice`, `stateFile`, `extraUpFlags` |
+| `accounts.nix` | `modules.accounts` | `adminKeys`, `mainUser`, `passwordlessSudo` |
+| `autocpufreq.nix` | `modules.autocpufreq` | `enable` |
+| `backup.nix` | `modules.backup` | `paths`, `exclude`, `repository`, `passwordFile`, `sshKeyFile`, `knownHost`, `timerConfig`, `pruneOpts`, `initialize` |
+| `boot.nix` | `modules.boot` | `systemdBoot`, `efi` |
 | `dns.nix` | `modules.dns` | `records`, `push.{enable,zone,ignore,variables}` |
-| `mail.nix` | `modules.mail` | `enable`, `hostname`, `webmailHostname`, `domain`, `acmeEmail`, `dnssecValidation`, `accounts.<name>.{passwordFile,hashedPasswordFile,aliases,quota,sieveScript}`, plus read-only `mtaStsPolicy`/`mtaStsId` |
-| `backup.nix` | `modules.backup` | `enable`, `paths`, `exclude`, `repository`, `passwordFile`, `timerConfig`, `pruneOpts`, `initialize` |
+| `fail2ban.nix` | `modules.fail2ban` | `enable` |
+| `firewall.nix` | `modules.firewall` | `openPorts` |
+| `firmware.nix` | `modules.firmware` | `enable` |
+| `fonts.nix` | `modules.fonts` | `enable` |
+| `initrd-tailscale.nix` | `modules.initrdTailscale` | `port`, `stateMountPoint`, `stateDevice`, `stateFile`, `extraUpFlags` |
+| `locale.nix` | `modules.locale` | `germanSubLocales` |
+| `login.nix` | `modules.login` | `passwordSecret`, `passwordUser`, `keys` |
+| `mail.nix` | `modules.mail` | `hostname`, `webmailHostname`, `domain`, `acmeEmail`, `dnssecValidation`, `accounts.<name>.{passwordFile,hashedPasswordFile,aliases,quota,sieveScript}`, plus read-only `mtaStsPolicy`/`mtaStsId` |
+| `networkmanager.nix` | `modules.networkmanager` | `enable` |
+| `nix-daemon.nix` | `modules.nix` | `mainUser` |
+| `onepassword.nix` | `modules.onepassword` | `polkitOwners` |
+| `packages.nix` | `modules.packages` | `extraPackages` |
+| `pipewire.nix` | `modules.pipewire` | `enable` |
+| `plasma.nix` | `modules.plasma` | `enable` |
+| `printing.nix` | `modules.printing` | `enable` |
+| `rdp.nix` | `modules.rdp` | `enable` |
+| `remote-unlock.nix` | `modules.remoteUnlock` | `authorizedKeys`, `initrdSsh`, `initrdSshPort`, `initrdSshHostKey` |
+| `security.nix` | `modules.security` | `enable` |
+| `sops.nix` | `modules.sops` | `enable` (default true) |
+| `ssh.nix` | `modules.ssh` | `enable` (client + stock sshd) |
+| `sshd.nix` | `modules.sshd` | `mainUser` (hardened server sshd) |
+| `sysctl.nix` | `modules.sysctl` | `enable` |
+| `tailscale.nix` | `modules.tailscale` | `openFirewall` |
+| `users.nix` | `modules.users` | `mainUser`, `userShell` |
+| `wireguard.nix` | `modules.wireguard` | `address`, `dns`, `dnsSearch`, `dnsPriority` |
+| `x11.nix` | `modules.x11` | `enable` |
+| `zram.nix` | `modules.zram` | `memoryPercent` |
+| `disk` (in `profiles/disk/`) | `modules.disk` | `ephemeralRoot` |
+| `desktop` (in `profiles/desktop.nix`) | `modules.desktop` | `backupFileExt`, `homeModule` |
 
 The option table above is a summary. Print the authoritative list for any module
 with the two `nix eval` commands at the top of this page.
 
-`server.nix` is the one that changes a host's shape: it turns off the desktop,
-enables a key-only sshd with a strict settings set, adds fail2ban (sshd,
-recidive), zram, kernel/sysctl hardening, and a remote-unlock sshd in the initrd
-plus `modules.initrdTailscale`, which rebinds that sshd to the tailnet address
-so LUKS can be unlocked without a console.
+`ssh.nix` and `sshd.nix` are deliberately separate: `ssh.nix` is the client plus
+whatever sshd stock NixOS provides, `sshd.nix` replaces it with the hardened
+server policy (key-only, `AllowUsers`, restricted forwarding). They are
+different policies, not one feature written twice — don't consolidate them.
 
 `dns.nix` is split deliberately. **Any** module or host may append to
 `modules.dns.records` (via `mylib.publishDns`) — that is a registry. Exactly one
@@ -91,20 +111,27 @@ Split by where the software can live, not by topic — `base` works over SSH,
 
 ## Adding a host
 
-1. `mkdir -p hosts/newhost`
+1. `scripts/new-host.sh <name> --role laptop|desktop|server` scaffolds the three
+   files below, or do it by hand:
 2. Generate `hosts/newhost/hardware-configuration.nix` (from the installer, or
-   `nixos-generate-config`).
+   `nixos-generate-config`). It must **not** define `fileSystems` or
+   `swapDevices` — disko owns those and defining them twice is a hard error.
 3. `hosts/newhost/default.nix`:
 
    ```nix
    { mylib, ... }:
    {
-     imports = mylib.scanPaths ../../modules/nixos ++ [ ./hardware-configuration.nix ];
+     imports = [
+       (mylib.scanPaths ../../modules/nixos)
+       ../../profiles/desktop.nix          # or server.nix / laptop.nix
+       ../../profiles/desktops/plasma.nix  # exactly one; omit on a server
+       ./hardware-configuration.nix
+     ];
 
-     modules.system.hostName = "newhost";
+     networking.hostName = "newhost";
      modules.boot.enable = true;
-     # Desktop host? enable modules.services.plasma etc.
-     # Server host? modules.server.enable = true; modules.server.adminKeys = [ … ];
+     # Optional services are per-host opt-ins, never implied by the role:
+     # modules.printing.enable = true;
 
      home-manager.users.leoguy77.imports = [ ../../modules/home ./home.nix ];
    }
@@ -116,6 +143,36 @@ Split by where the software can live, not by topic — `base` works over SSH,
 A host with an encrypted root also needs a disko layout and an entry in
 `scripts/deploy.sh`'s expectations; see `hosts/mail/README.md` for the full
 worked example (custom ISO, initrd tailnet unlock, host-key seeding).
+
+## Choosing the desktop environment
+
+`profiles/desktop.nix` is the **role** — everything a graphical machine needs
+that is not the desktop environment itself: audio, fonts, locale, NetworkManager,
+the nix daemon, users, backup. It deliberately does not pick a DE.
+
+The DE is a swappable file in `profiles/desktops/`, and a host imports exactly
+one:
+
+| File | What it turns on |
+|---|---|
+| `plasma.nix` | `modules.x11` + `modules.plasma` (Plasma 6, X11 + XWayland, SDDM) |
+| `niri.nix` | `programs.niri` + `services.xserver.enable` (XWayland only) + SDDM |
+| `hyprland.nix` | `programs.hyprland` + SDDM |
+
+Switching DE is one import line. Two details that bite:
+
+- **`services.xserver.enable` is not the same as `modules.x11`.** The former is
+  the X server (which is also XWayland); the latter is the full X11 session
+  machinery. Niri and Hyprland need the first, not the second.
+- **Niri needs `services.xserver.enable` explicitly; Hyprland does not.**
+  Hyprland's module sets `xwayland.enable` from `programs.hyprland.xwayland.enable`
+  (`nixos/modules/programs/wayland/wayland-session.nix:17`), while `programs.niri`
+  has no such wiring.
+
+The three verify as mutually exclusive — build a throwaway host for each and
+check `programs.plasma.enable`, `programs.niri.enable`,
+`programs.hyprland.enable`, `services.xserver.enable` and
+`services.displayManager.defaultSession`.
 
 ## Ephemeral root
 

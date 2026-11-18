@@ -53,6 +53,7 @@ hosts/<name>/          # default.nix + hardware-configuration.nix (+ home.nix, d
 modules/nixos/         # system modules (option-bearing), auto-imported by scanPaths
 modules/home/          # Home Manager: base/ (headless) tui/ (terminal) gui/ (desktop)
 profiles/              # compositions a host opts into: {server,desktop,laptop}.nix
+profiles/desktops/     # the DE itself: import exactly one of {plasma,niri,hyprland}.nix
 profiles/state.nix     # impermanence: which system paths survive an ephemeral root
 profiles/disk/         # disk layouts for nixos-anywhere
 modules/iso/           # per-host installer ISO
