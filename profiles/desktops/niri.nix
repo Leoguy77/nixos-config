@@ -21,6 +21,31 @@
 {
   programs.niri.enable = true;
 
+  # File manager. niri has no desktop shell and ships no file browser, so this
+  # is the one graphical file manager on the box. The NixOS module (rather than
+  # a bare home.packages entry) is what wires up the dbus-activated services:
+  # thunar's daemon (single-instance, bulk rename), xfconf for its settings, and
+  # the systemd user units it ships.
+  programs.thunar.enable = true;
+
+  # Right-click extract/create archive, and correct handling of removable media
+  # (eject buttons, mount policies) instead of leaving it to gvfs' defaults.
+  programs.thunar.plugins = with pkgs; [
+    thunar-archive-plugin
+    thunar-volman
+  ];
+
+  # Thunar itself only lists directories. gvfs is what backs trash://, sftp://,
+  # smb:// and mtp:// (phones) — and it pulls in the udisks2 mounting rules
+  # that make removable media appear at all. Without it a plugged-in USB stick
+  # silently never shows up.
+  services.gvfs.enable = true;
+
+  # Without a thumbnailer Thunar draws a generic icon for every image and video;
+  # ~/.cache/thumbnails did not exist before this. tumbler is the Xfce dbus
+  # service that produces them.
+  services.tumbler.enable = true;
+
   # Puts `xwayland-satellite` on PATH. niri looks it up by bare name
   # (niri-config/src/lib.rs:1707 `path: "xwayland-satellite"`), so without this
   # package X11 apps silently do nothing — niri logs "disabling integration".
