@@ -52,10 +52,17 @@ input {
 //
 // Bare command names are used throughout this file: everything spawned here is
 // in home.packages, which puts it on the session PATH.
+// hyprlock, not swaylock: swaylock has no password field at all -- the ring is
+// its entire UI. hyprlock renders a real input field with a blurred screenshot
+// of the desktop behind it. Both speak ext-session-lock-v1, which niri serves
+// (niri src/handlers/mod.rs:70), and hyprlock's `path=screenshot` needs
+// wlr-screencopy, which niri also serves (src/handlers/mod.rs:22,86,95,637).
+// Unlock was proven in a nested niri session before this line was changed --
+// a locker that cannot be unlocked strands the machine with no way back in.
 spawn-at-startup "swayidle" "-w" \
-  "timeout" "300" "swaylock" \
+  "timeout" "300" "hyprlock" \
   "timeout" "600" "niri msg action power-off-monitors" \
-  "before-sleep" "swaylock"
+  "before-sleep" "hyprlock"
 
 spawn-at-startup "mako"
 
@@ -77,5 +84,5 @@ spawn-sh-at-startup "swaybg -i ~/.config/niri/wallpaper.png -m fill"
 binds {
   Mod+T hotkey-overlay-title="Terminal: kitty" { spawn "kitty"; }
   Mod+D hotkey-overlay-title="Launcher: fuzzel" { spawn "fuzzel"; }
-  Super+Alt+L hotkey-overlay-title="Lock" { spawn "swaylock"; }
+  Super+Alt+L hotkey-overlay-title="Lock" { spawn "hyprlock"; }
 }

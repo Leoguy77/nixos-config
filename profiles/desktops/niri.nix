@@ -51,6 +51,13 @@
   # package X11 apps silently do nothing — niri logs "disabling integration".
   environment.systemPackages = [ pkgs.xwayland-satellite ];
 
+  # hyprlock authenticates through PAM, and NixOS only pre-creates a pam.d file
+  # for names it knows. `/etc/pam.d/swaylock` exists out of the box; hyprlock's
+  # does not. Without this declaration hyprlock finds no stack, rejects every
+  # password, and the lock screen becomes a soft lockout — the session is still
+  # alive, so recovery is Ctrl+Alt+F2 + `loginctl unlock-session`.
+  security.pam.services.hyprlock = { };
+
   # Display manager. SDDM is already in the repo and can start a Wayland
   # session; GDM would drag in a second desktop stack.
   services.displayManager.sddm.enable = true;

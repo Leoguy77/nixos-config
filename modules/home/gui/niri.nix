@@ -172,7 +172,6 @@ in
     # ── Session programs ──────────────────────────────────────────────────
     home.packages = with pkgs; [
       fuzzel # Mod+D launcher
-      swaylock # lock screen
       swayidle # idle -> lock -> blank, plus lock before suspend
       mako # notification daemon
       pavucontrol # mixer, opened from the bar
@@ -198,5 +197,108 @@ in
     # prompt does not drag in a Qt/Kirigami stack, and home-manager already has
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
+    # ── Locker ──────────────────────────────────────────────────
+    # hyprlock, not swaylock. swaylock draws a ring and nothing else -- no
+    # password field, no text, no failed-attempt feedback; the ring IS the
+    # entire UI (its complete option list is indicator size/thickness/position
+    # and font size). That is a deliberate minimalist design, and it is what
+    # made the idle lock look like a broken white screen.
+    #
+    # hyprlock is a general ext-session-lock-v1 client, not a Hyprland-only
+    # one: it pulls in no Hyprland daemon (hyprland appears 0 times in its
+    # closure) and niri serves the protocol natively
+    # (src/handlers/mod.rs:70 delegate_session_lock, src/niri.rs:279
+    # session_lock_state).
+    #
+    # Unlock was proven before the idle ladder was repointed, in a nested niri
+    # session (winit backend) so a failure could not strand the real one: a
+    # wrong password reached PAM and redrew as "Authentication failed", and the
+    # real password unlocked it. Note a `timeout N hyprlock` test proves
+    # nothing -- Smithay's `Drop for SessionLocker`
+    # (src/wayland/session_lock/mod.rs:195-202) calls `lock.finished()` when the
+    # locker dies, so niri unlocks without any authentication happening.
+    #
+    # What it buys: a real input field with dots, a placeholder, a proper
+    # blurred screenshot background, and fractional scaling (it logged
+    # "Got fractional scale: 125.0%" on this 1.25-scale panel).
+    programs.hyprlock.enable = true;
+
+    # Catppuccin Mocha, matching the waybar/fuzzel palette already in this file
+    # (base #1e1e2e, surface0 #313244, text #cdd6f4, blue #89b4fa, overlay0
+    # #6c7086).
+    #
+    # `path = "screenshot"` makes hyprlock grab the screen it is covering and
+    # blur it, so the lock screen shows a blurred version of whatever was open
+    # instead of a flat colour. blur_passes 3 is the usual "readable but clearly
+    # backgrounded" setting; each pass costs GPU time on every frame it
+    # re-renders, so this is not a knob to just turn up.
+    programs.hyprlock.settings = {
+      general = {
+        hide_cursor = true;
+        # No point requiring auth for the first few seconds: nothing has had
+        # time to happen yet. Matches the fade-in.
+        grace = 0;
+      };
+
+      background = [
+        {
+          monitor = "";
+          path = "screenshot";
+          blur_passes = 3;
+          blur_size = 8;
+          noise = 0.05;
+          contrast = 0.9;
+          brightness = 0.7;
+          vibrancy = 0.2;
+        }
+      ];
+
+      # The part swaylock does not have at all: a drawn input field with an
+      # outlined box, password dots, and a placeholder that vanishes on first
+      # keypress.
+      input-field = [
+        {
+          monitor = "";
+          size = "280, 52";
+          outline_thickness = 2;
+          dots_size = 0.25;
+          dots_spacing = 0.35;
+          dots_center = true;
+          rounding = 12;
+          fade_on_empty = false;
+          outer_color = "rgb(137, 180, 250)";
+          inner_color = "rgb(49, 50, 68)";
+          font_color = "rgb(205, 214, 244)";
+          placeholder_text = ''<span foreground="##6c7086">Password</span>'';
+          # Show the failure reason (wrong password, etc.) rather than silently
+          # resetting dots, which is the other thing that made swaylock feel
+          # like it was ignoring input.
+          fail_text = ''<span foreground="##f38ba8">$FAIL</span>'';
+          # Reveal the on-screen keyboard layout when Caps Lock is on -- this is
+          # the single most common cause of "my password is right but rejected".
+          capslock_color = "rgb(249, 226, 175)";
+        }
+      ];
+
+      # Clock above the field, so the lock screen is not a blank wall.
+      label = [
+        {
+          monitor = "";
+          text = "$TIME";
+          font_size = 64;
+          font_family = "monospace";
+          color = "rgb(205, 214, 244)";
+          position = "0, 220";
+        }
+        {
+          monitor = "";
+          text = ''cmd[update:60000] date +"%A, %d %B"'';
+          font_size = 18;
+          font_family = "monospace";
+          color = "rgb(166, 173, 200)";
+          position = "0, 160";
+        }
+      ];
+    };
   };
 }
