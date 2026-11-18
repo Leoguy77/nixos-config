@@ -100,4 +100,16 @@ binds {
   Mod+N hotkey-overlay-title="Notifications" { spawn "swaync-client" "-t"; }
   Mod+Shift+N hotkey-overlay-title="Do Not Disturb" { spawn "swaync-client" "-d"; }
   Mod+Shift+C hotkey-overlay-title="Clear Notifications" { spawn "swaync-client" "-C"; }
+
+  // Clipboard history. Mod+Shift+V would be the natural choice but the default
+  // config already binds it to switch-focus-between-floating-and-tiling, and
+  // Mod+V toggles floating. Mod+X is free.
+  //
+  // The pipeline is the standard cliphist one: list the history, pipe it into
+  // fuzzel in dmenu mode, then hand the chosen line back to `cliphist decode`
+  // and into wl-copy. `cliphist list` prefixes each line with an ID, which is
+  // why the decode step takes the whole line rather than the text.
+  Mod+X hotkey-overlay-title="Clipboard History" {
+    spawn-sh "cliphist list | fuzzel --dmenu --prompt='Clipboard: ' --width=60 | cliphist decode | wl-copy";
+  }
 }

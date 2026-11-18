@@ -216,6 +216,22 @@ in
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
 
+    # ── Clipboard history ─────────────────────────────────────────────────
+    # The HM module runs two watchers (`wl-paste --watch cliphist store`), one
+    # for text and one for images, and declares cliphist itself. Only the
+    # picker is missing, which is a bind in config.kdl.
+    services.cliphist = {
+      enable = true;
+
+      # Images in history are worth having (screenshot -> paste), and the
+      # watcher is a separate cheap process. Setting this false would leave
+      # images unrecorded entirely.
+      allowImages = true;
+
+      # Defaults: 500 entries, dedupe within the last 10. Long enough to find
+      # something from days ago, bounded enough that the DB stays small.
+    };
+
     # ── Notifications ─────────────────────────────────────────────────────
     # swaync replaces mako. Both claim the `org.freedesktop.Notifications`
     # D-Bus name, so exactly one can run; mako's spawn-at-startup line is gone
