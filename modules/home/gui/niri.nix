@@ -264,6 +264,12 @@ in
           keybind = "u";
         }
         {
+          label = "hibernate";
+          action = "systemctl hibernate";
+          text = "Hibernate";
+          keybind = "h";
+        }
+        {
           label = "reboot";
           action = "systemctl reboot";
           text = "Reboot";
@@ -329,6 +335,7 @@ in
               lock = "lock";
               logout = "logout";
               suspend = "suspend";
+              hibernate = "hibernate";
               reboot = "reboot";
               shutdown = "shutdown";
             }
