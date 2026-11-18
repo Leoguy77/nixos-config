@@ -72,10 +72,17 @@ in
 
       // niri has no idle daemon of its own; swayidle does the lock-then-blank
       // ladder. `-w` also covers suspend via the before-sleep hook.
+      //
+      // One KDL string = one argv entry: spawn-at-startup execs directly, with
+      // no shell. swayidle matches argv[i] against the literal words `timeout`
+      // and `before-sleep` (swayidle main.c:864-892) and exits with
+      // "Unsupported command" on anything else, so the keywords must be their
+      // own arguments. The command *it* runs goes through `sh -c`
+      // (main.c:156), so quoting inside that one argument is fine.
       spawn-at-startup "${pkgs.swayidle}/bin/swayidle" "-w" \
-        "timeout 300 '${lock}'" \
-        "timeout 600 'niri msg action power-off-monitors'" \
-        "before-sleep '${lock}'"
+        "timeout" "300" "${lock}" \
+        "timeout" "600" "niri msg action power-off-monitors" \
+        "before-sleep" "${lock}"
 
       spawn-at-startup "${pkgs.mako}/bin/mako"
 
