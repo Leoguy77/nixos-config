@@ -1,0 +1,69 @@
+// Niri compositor config — edit this file directly, then `niri msg action
+// reload-config`. Home Manager symlinks it out of the store
+// (mkOutOfStoreSymlink in niri.nix), so changes take effect without a rebuild.
+//
+// This file does NOT restate niri's defaults. It `include`s the default config
+// niri ships (632 lines: every standard bind, input default, window rule, and
+// the `spawn-at-startup "waybar"` that starts the bar) and only overrides what
+// is actually different. That works because the parser merges each node into
+// `Config::default()`, and for the one section where merging would be wrong --
+// `binds {}` -- conflicting keys are REPLACED rather than rejected
+// (niri-config/src/lib.rs:219-231: "We replace conflicting binds, rather than
+// error, to support the use-case where you import some preconfigured-dots.kdl,
+// then override some binds with your own").
+//
+// Consequence when editing: a bind written here silently wins over the included
+// one. Keep this file to deliberate differences only.
+//
+// `default-config.kdl` next to this file is a separate symlink into the niri
+// build we actually run, so the include cannot drift from the compositor
+// version. Relative includes resolve against the directory of the config as
+// opened, i.e. ~/.config/niri/ (verified against niri-config/src/lib.rs:345-380).
+include "default-config.kdl"
+
+input {
+  // xkb is deliberately NOT set. With an empty `xkb {}` block (as in the
+  // included default) niri takes the layout from org.freedesktop.locale1, which
+  // NixOS drives from services.xserver.xkb.layout (modules/nixos/locale.nix).
+  // Writing a layout here would silently ignore modules.nixos.locale.
+
+  // `touchpad` REPLACES the included one wholesale rather than merging
+  // field-by-field -- merge_clone! in niri-config/src/macros.rs:11-19 does
+  // `clone_from`, and the shipped default-config.kdl says as much: "Omitting
+  // settings disables them". So tap + natural-scroll must be restated here or
+  // they are silently switched off. (Verified: dropping them left only `dwt`
+  // in effect.)
+  touchpad {
+    tap
+    natural-scroll
+    dwt // ignore the touchpad while typing
+  }
+}
+
+// niri has no idle daemon of its own; swayidle does the lock-then-blank ladder.
+// `-w` also covers suspend via the before-sleep hook.
+//
+// One KDL string = one argv entry: spawn-at-startup execs directly, with no
+// shell. swayidle matches argv[i] against the literal words `timeout` and
+// `before-sleep` (swayidle main.c:864-892) and exits with "Unsupported command"
+// on anything else, so the keywords must be their own arguments. The command
+// *it* runs goes through `sh -c` (main.c:156), so quoting inside that one
+// argument is fine.
+//
+// Bare command names are used throughout this file: everything spawned here is
+// in home.packages, which puts it on the session PATH.
+spawn-at-startup "swayidle" "-w" \
+  "timeout" "300" "swaylock" \
+  "timeout" "600" "niri msg action power-off-monitors" \
+  "before-sleep" "swaylock"
+
+spawn-at-startup "mako"
+
+// -- Overrides -------------------------------------------------------------
+// The defaults bind Mod+T to alacritty and Mod+D to fuzzel already; only the
+// terminal differs (alacritty is not installed here).
+binds {
+  Mod+T hotkey-overlay-title="Terminal: kitty" { spawn "kitty"; }
+  Mod+D hotkey-overlay-title="Launcher: fuzzel" { spawn "fuzzel"; }
+  Super+Alt+L hotkey-overlay-title="Lock" { spawn "swaylock"; }
+}

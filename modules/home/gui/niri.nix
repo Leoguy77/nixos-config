@@ -26,12 +26,9 @@ let
   cfg = config.modules.home.desktops.niri;
 
   # The default config of the niri we actually build, so it cannot drift from
-  # the compositor version.
+  # the compositor version. Symlinked next to config.kdl and pulled in by a
+  # relative `include`.
   defaultConfig = "${pkgs.niri.doc}/share/doc/niri/default-config.kdl";
-
-  terminal = "${pkgs.kitty}/bin/kitty";
-  launcher = "${pkgs.fuzzel}/bin/fuzzel";
-  lock = "${pkgs.swaylock}/bin/swaylock";
 in
 {
   options.modules.home.desktops.niri.enable =
@@ -39,62 +36,30 @@ in
 
   config = lib.mkIf cfg.enable {
     # ── Compositor ────────────────────────────────────────────────────────
-    # Plain config file rather than Nix options: niri validates its own config
-    # (`niri validate -c <file>`), so re-modelling the schema in Nix would add a
-    # second, worse schema over the real one.
-    xdg.configFile."niri/config.kdl".text = ''
-      // Generated from modules/home/gui/niri.nix — edit there, not here.
+    # The config is a real file in this repo (config.kdl, next to this module)
+    # symlinked out of the store rather than inlined into a store path. That is
+    # the whole point: tuning the compositor is the one thing done dozens of
+    # times in a row, and a store-path config forces a full nixos-rebuild switch
+    # per attempt. Out of store, an edit goes live on
+    # `niri msg action reload-config`.
+    #
+    # The absolute path is unavoidable -- a store symlink cannot point into the
+    # working tree any other way -- so it is derived from homeDirectory rather
+    # than repeated per host. A host that enables this module without the repo
+    # checked out gets a dangling link and niri's own error, not a failed
+    # evaluation: niri then falls back to its compiled-in defaults and the
+    # session still starts.
+    xdg.configFile = {
+      "niri/config.kdl".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Desktop/Code/nixos-config/modules/home/gui/niri/config.kdl";
 
-      // Every standard bind, input default, window rule, and the
-      // `spawn-at-startup "waybar"` that starts the bar. A bind restated below
-      // replaces the included one.
-      include "${defaultConfig}"
-
-      input {
-        // xkb is deliberately NOT set. With an empty `xkb {}` block (as in the
-        // included default) niri takes the layout from
-        // org.freedesktop.locale1, which NixOS drives from
-        // services.xserver.xkb.layout (modules/nixos/locale.nix). Writing a
-        // layout here would silently ignore modules.nixos.locale.
-
-        // `touchpad` REPLACES the included one wholesale rather than merging
-        // field-by-field -- merge_clone! in niri-config/src/macros.rs:11-19 does
-        // `clone_from`, and the shipped default-config.kdl says as much:
-        // "Omitting settings disables them". So tap + natural-scroll must be
-        // restated here or they are silently switched off. (Verified: dropping
-        // them left only `dwt` in effect.)
-        touchpad {
-          tap
-          natural-scroll
-          dwt // ignore the touchpad while typing
-        }
-      }
-
-      // niri has no idle daemon of its own; swayidle does the lock-then-blank
-      // ladder. `-w` also covers suspend via the before-sleep hook.
-      //
-      // One KDL string = one argv entry: spawn-at-startup execs directly, with
-      // no shell. swayidle matches argv[i] against the literal words `timeout`
-      // and `before-sleep` (swayidle main.c:864-892) and exits with
-      // "Unsupported command" on anything else, so the keywords must be their
-      // own arguments. The command *it* runs goes through `sh -c`
-      // (main.c:156), so quoting inside that one argument is fine.
-      spawn-at-startup "${pkgs.swayidle}/bin/swayidle" "-w" \
-        "timeout" "300" "${lock}" \
-        "timeout" "600" "niri msg action power-off-monitors" \
-        "before-sleep" "${lock}"
-
-      spawn-at-startup "${pkgs.mako}/bin/mako"
-
-      // ── Overrides ───────────────────────────────────────────────────────
-      // The defaults bind Mod+T to alacritty and Mod+D to fuzzel already; only
-      // the terminal differs (alacritty is not installed here).
-      binds {
-        Mod+T hotkey-overlay-title="Terminal: kitty" { spawn "${terminal}"; }
-        Mod+D hotkey-overlay-title="Launcher: fuzzel" { spawn "${launcher}"; }
-        Super+Alt+L hotkey-overlay-title="Lock" { spawn "${lock}"; }
-      }
-    '';
+      # The include target of config.kdl. Deliberately still a store path: it is
+      # niri's own file, and pinning it to the build we run is what stops the two
+      # drifting apart. A relative include resolves against the directory of the
+      # config as opened (~/.config/niri/), even through the symlink above
+      # (verified against niri-config/src/lib.rs:345-380).
+      "niri/default-config.kdl".source = defaultConfig;
+    };
 
     # ── Bar ───────────────────────────────────────────────────────────────
     # systemd integration deliberately left off: niri's default config already
