@@ -67,11 +67,9 @@ _:
     signingKey = "23CDB62B8549A1537F83F13A99CD2D0BD7504252";
   };
 
-  # Theme preferences
-  theme = {
-    name = "catppuccin";
-    flavor = "mocha";
-    accent = "mauve";
-    darkMode = true;
-  };
+  # Theme preferences used to live here as name/flavor/accent/darkMode. Nothing
+  # read them: modules/home/gui/desktop.nix has its own darkMode option, and the
+  # kitty theme was a separate hardcoded string. Deleted rather than wired up
+  # because per-DE theming belongs where the DE is declared, not in a global
+  # vars file that every host shares.
 }
