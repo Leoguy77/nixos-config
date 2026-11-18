@@ -141,8 +141,23 @@ to hand the key to `--extra-files`.
 until you run `sops updatekeys` from another machine holding a `.sops.yaml`
 recipient. Do not pick this at 1am with no second machine.
 
-Either way, take a restic snapshot first — `/home` is a persistent subvolume and
-*is* preserved by the layout, but this is a repartition, not a reinstall in place.
+Either way, take a restic snapshot first. **`/home` does NOT survive this** — it is a
+btrfs subvolume *inside* the LUKS `cryptroot` container, so `--mode format`
+destroys the whole partition table and `/home` with it. The only reason `/home` is
+not ephemeral is that it survives a *reboot*; it does not survive a reinstall.
+
+```sh
+sudo systemctl start restic-backups-system.service
+sudo systemctl status restic-backups-system.service     # wait for Result=success
+```
+
+Then prove the snapshot restores, because a backup you have not restored is a hope:
+
+```sh
+T=$(mktemp -d)
+sudo restic restore latest --target "$T" --include /home/$USER/Desktop
+sudo du -sh "$T"; sudo rm -rf "$T"
+```
 
 ## 1. Boot the USB stick
 
@@ -254,7 +269,42 @@ on the machine cannot unlock the disk, and losing both the token and the recover
 key means the data is gone — the restic repository on host1 is the only copy that
 survives.
 
-## 5. If the host key rotated (option B)
+## 5. Restore /home from host1
+
+Nothing put your files back. `/home/leoguy77` now exists and is empty except for
+what home-manager generated. The restic repository on host1 has them, and the new
+machine can already reach it: the host key was carried across, so sops decrypts
+`restic_password` and `restic_ssh_key` on first boot, and `programs.ssh.knownHosts`
+already pins host1.
+
+Log in as `leoguy77` and run it **as root**, because the backup was taken as root
+and only root can write files back with their original ownership.
+
+Use **`restic-system`, not `restic`**. nixpkgs generates a wrapper named after the
+backup config that presets `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE` and
+`sftp.args`; plain `restic` has none of them and will stop with
+*unable to open config file* / *repository not specified*.
+
+```sh
+sudo -i
+restic-system snapshots --latest 3
+restic-system restore latest --target / --verify
+```
+
+- `--target /` restores to the original absolute paths, so `/home/leoguy77/...`
+  lands where it came from. Do not point it at `/home/leoguy77` — that would create
+  `/home/leoguy77/home/leoguy77/...`.
+- `--verify` re-reads the restored data and compares it to the repository, so a
+  silent bit-rot in the repo is caught now rather than at the next restore.
+- `Downloads` and `.cache` were excluded, so they will not come back. Everything
+  else does.
+- Restoring over the fresh home-manager symlinks will replace them. Run
+  `home-manager switch` (or reboot) afterwards to put the config links back.
+
+The restic config, password file and SSH key are already in place, so no flags are
+needed. `restic-system` is the wrapper described above.
+
+## 6. If the host key rotated (option B)
 
 From a machine that holds a `.sops.yaml` recipient:
 
@@ -270,7 +320,7 @@ Until this is done the machine boots but **no secret decrypts**, so there is no
 restic password, no WireGuard key and no Tailscale auth. Do it before you rely on
 anything.
 
-## 6. First boot is the real test
+## 7. First boot is the real test
 
 `profiles/state.nix` enumerates exactly what survives: 9 directories and 7 files.
 A successful first boot proves the list is complete. The things that will be
