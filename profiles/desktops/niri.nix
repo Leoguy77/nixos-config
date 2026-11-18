@@ -4,31 +4,36 @@
 # together with profiles/desktop.nix, which carries everything that is NOT the
 # desktop environment.
 #
-# Wayland-only, but `services.xserver.enable` is still turned on: that is what
-# ships XWayland, and without it Steam and older X11 apps do not start. The cost
-# is a small closure; the cost of dropping it is a machine that cannot run them.
-{ config, ... }:
+# X11 apps go through `xwayland-satellite`, NOT through an X server. niri's NixOS
+# module calls wayland-session.nix with `enableXWayland = false` (found at
+# nixos/modules/programs/wayland/niri.nix:85) and instead speaks the X11 socket
+# itself, exec'ing `xwayland-satellite` on demand
+# (src/utils/xwayland/satellite.rs:99-115). `services.xserver.enable` does NOT
+# provide that — the two are unrelated, and turning the X server on here would
+# add a whole X session stack that never gets used.
+#
+# So `services.xserver.enable` is NOT set here. The one thing that used to
+# force it was SDDM: without Wayland it asserts on the X server
+# (nixos/modules/services/display-managers/sddm.nix:350, `xcfg.enable ||
+# cfg.wayland.enable`). `sddm.wayland.enable` below satisfies that same
+# assertion, so the machine still logs in with no X server installed.
+{ pkgs, ... }:
 {
   programs.niri.enable = true;
 
-  # XWayland for Steam / legacy X11 apps. NOT `modules.x11` — that would also
-  # pull in the X11 session machinery and a display manager X session Niri has
-  # no use for.
-  services.xserver.enable = true;
+  # Puts `xwayland-satellite` on PATH. niri looks it up by bare name
+  # (niri-config/src/lib.rs:1707 `path: "xwayland-satellite"`), so without this
+  # package X11 apps silently do nothing — niri logs "disabling integration".
+  environment.systemPackages = [ pkgs.xwayland-satellite ];
 
   # Display manager. SDDM is already in the repo and can start a Wayland
-  # session; GNOME's GDM would drag in a second desktop stack.
+  # session; GDM would drag in a second desktop stack.
   services.displayManager.sddm.enable = true;
   services.displayManager.sddm.wayland.enable = true;
 
-  # Niri's own module defaults this to "niri" for GDM's sake; with SDDM the
-  # session list is explicit, so pin it rather than relying on that default.
+  # niri's own module sets this to "niri" with mkDefault; pinned for the same
+  # reason as in plasma.nix and hyprland.nix — with several DE profiles in
+  # reach, a host that mixes two should fail loudly instead of silently
+  # opening the wrong session.
   services.displayManager.defaultSession = "niri";
-
-  assertions = [
-    {
-      assertion = config.programs.niri.enable;
-      message = "profiles/desktops/niri.nix expects programs.niri; the NixOS module is missing from the pin.";
-    }
-  ];
 }

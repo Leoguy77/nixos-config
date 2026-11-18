@@ -4,12 +4,12 @@
 # together with profiles/desktop.nix, which carries everything that is NOT the
 # desktop environment.
 #
-# XWayland: `programs.hyprland.xwayland.enable` defaults to true, and the
-# module's wayland-session.nix turns on `xwayland.enable` from it. That is what
-# Steam and older X11 apps need, so nothing extra is required here — unlike
-# niri.nix, which needs `services.xserver.enable` for it.
-{ ... }:
-{
+# X11 apps DO go through the X server here, unlike niri: Hyprland's module
+# passes `enableXWayland = cfg.xwayland.enable` into wayland-session.nix
+# (nixos/modules/programs/wayland/hyprland.nix:116), which sets
+# `programs.xwayland.enable` — that is the Xwayland bundled with the X server.
+# So the `xwayland.enable = true` below is load-bearing, not decoration.
+_: {
   programs.hyprland = {
     enable = true;
 

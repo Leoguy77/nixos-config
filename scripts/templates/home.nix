@@ -4,7 +4,7 @@
 #
 # The defaults it inherits: modules.home.core + base.development + tui + gui.desktop.
 # Delete any line below that this host does not need.
-{ ... }:
+_:
 
 {
   modules.home.core.enable = true;

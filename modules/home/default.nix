@@ -18,5 +18,9 @@
     # GUI applications (desktop/laptop)
     ./gui/desktop.nix
     ./gui/pi.nix
+
+    # Wayland sessions. Each stays inert until its host sets
+    # modules.home.desktops.<name>.enable = true.
+    ./gui/niri.nix
   ];
 }

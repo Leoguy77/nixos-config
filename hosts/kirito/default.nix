@@ -12,7 +12,7 @@
     # The desktop environment itself. Exactly one file from profiles/desktops/ —
     # the role above carries everything that is NOT the DE, so switching this
     # line is the whole change when trying Niri or Hyprland.
-    ../../profiles/desktops/plasma.nix
+    ../../profiles/desktops/niri.nix
     # Ephemeral root: / is tmpfs, and only what profiles/state.nix names survives
     # a reboot. Opted in here rather than in the laptop role — the machine that
     # tolerates it is a per-host judgement, not a property of running on battery.
@@ -30,7 +30,13 @@
 
   # Optional services this host historically ran (surfaces the per-host lever —
   # e.g. not every desktop opens RDP). Opt in to preserve prior behaviour.
-  modules.rdp.enable = true;
+  #
+  # RDP is OFF while this host runs Niri: xrdp's window manager is
+  # `startplasma-x11` (modules/nixos/rdp.nix), and there is no Plasma under this
+  # profile, so an xrdp login would land on a command that does not exist. Move
+  # the xrdp `defaultWindowManager` to a Niri-compatible session first if remote
+  # desktop is needed again.
+  # modules.rdp.enable = true;
   modules.printing.enable = true;
   modules.ssh.enable = true;
   modules.tailscale.enable = true;
