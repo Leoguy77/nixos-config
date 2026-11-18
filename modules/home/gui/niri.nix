@@ -232,6 +232,117 @@ in
       # something from days ago, bounded enough that the DB stays small.
     };
 
+    # ── Power menu ────────────────────────────────────────────────────────
+    # The default config binds Mod+Shift+E to a bare `quit` with a confirmation
+    # dialog. Replacing it with wlogout keeps quit reachable (its logout button
+    # is the same `niri msg action quit`) and adds lock, suspend, reboot and
+    # shutdown, which had no binding at all.
+    #
+    # wlogout is GTK3 plus gtk-layer-shell, and niri implements the
+    # wlr-layer-shell protocol (src/handlers/layer_shell.rs), so it draws a
+    # full-screen layer surface rather than a floating window.
+    programs.wlogout = {
+      enable = true;
+
+      layout = [
+        {
+          label = "lock";
+          action = "hyprlock";
+          text = "Lock";
+          keybind = "l";
+        }
+        {
+          label = "logout";
+          action = "niri msg action quit";
+          text = "Logout";
+          keybind = "e";
+        }
+        {
+          label = "suspend";
+          action = "systemctl suspend";
+          text = "Suspend";
+          keybind = "u";
+        }
+        {
+          label = "reboot";
+          action = "systemctl reboot";
+          text = "Reboot";
+          keybind = "r";
+        }
+        {
+          label = "shutdown";
+          action = "systemctl poweroff";
+          text = "Shutdown";
+          keybind = "s";
+        }
+      ];
+
+      # Same Catppuccin Mocha palette as waybar/hyprlock/swaync.
+      #
+      # The icons are the ones the wlogout package ships in its own
+      # $out/share/wlogout/icons; upstream's default style.css points at them
+      # by absolute store path too, since there is no /usr/share here to find
+      # them by name. Written as a Nix string so `pkgs.wlogout` resolves.
+      style = ''
+        * {
+          background: transparent;
+          border: none;
+          font-family: "Noto Sans", sans-serif;
+        }
+
+        window {
+          background: rgba(30, 30, 46, 0.88);
+        }
+
+        button {
+          background: rgba(49, 50, 68, 0.9);
+          color: #cdd6f4;
+          border-radius: 16px;
+          margin: 12px;
+          font-size: 18px;
+          background-repeat: no-repeat;
+          background-position: center 32%;
+          background-size: 64px 64px;
+          padding-top: 96px;
+        }
+
+        button:focus,
+        button:hover {
+          background-color: rgba(69, 71, 90, 0.95);
+          color: #89b4fa;
+          outline: 2px solid #89b4fa;
+        }
+
+        label {
+          font-size: 15px;
+          margin-top: 8px;
+        }
+
+        ${lib.concatStrings (
+          lib.mapAttrsToList
+            (name: icon: ''
+              #${name} {
+                background-image: url("${pkgs.wlogout}/share/wlogout/icons/${icon}.png");
+              }
+            '')
+            {
+              lock = "lock";
+              logout = "logout";
+              suspend = "suspend";
+              reboot = "reboot";
+              shutdown = "shutdown";
+            }
+        )}
+
+        /* Shutdown and reboot are the destructive ones; make them read that
+           way before they are clicked, not after. */
+        #shutdown label,
+        #reboot label {
+          color: #f38ba8;
+        }
+      '';
+    };
+
     # ── Notifications ─────────────────────────────────────────────────────
     # swaync replaces mako. Both claim the `org.freedesktop.Notifications`
     # D-Bus name, so exactly one can run; mako's spawn-at-startup line is gone

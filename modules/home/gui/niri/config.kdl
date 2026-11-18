@@ -101,6 +101,11 @@ binds {
   Mod+Shift+N hotkey-overlay-title="Do Not Disturb" { spawn "swaync-client" "-d"; }
   Mod+Shift+C hotkey-overlay-title="Clear Notifications" { spawn "swaync-client" "-C"; }
 
+  // Power menu. The default config binds Mod+Shift+E to a bare `quit` with a
+  // confirmation dialog; wlogout's logout button runs the same action, so quit
+  // stays reachable and lock/suspend/reboot/shutdown gain a binding.
+  Mod+Shift+E hotkey-overlay-title="Power Menu" { spawn "wlogout"; }
+
   // Clipboard history. Mod+Shift+V would be the natural choice but the default
   // config already binds it to switch-focus-between-floating-and-tiling, and
   // Mod+V toggles floating. Mod+X is free.
