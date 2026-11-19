@@ -269,6 +269,25 @@ in
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
 
+    # ── Default applications ──────────────────────────────────────────────
+    # Nothing set a default file manager, so the winner was whatever package
+    # happened to claim the type. kitty's helper declares `inode/directory`
+    # in kitty-open.desktop (to support `kitty +open`), which made double-
+    # clicking a folder in any GTK app spawn a terminal listing instead of
+    # Thunar. Nothing about that is a conscious choice — kitty's .desktop
+    # ships that line regardless of whether kitty is anyone's file manager.
+    #
+    # `image/*` has the same shape: satty (the screenshot annotator) declares
+    # it, so opening a PNG launches the annotation UI. Left alone here because
+    # satty does display the image and there is no dedicated viewer installed;
+    # if one is added, point image/* at it.
+    xdg.mimeApps = {
+      enable = true;
+      defaultApplications = {
+        "inode/directory" = "thunar.desktop";
+      };
+    };
+
     # ── Volume / brightness OSD ───────────────────────────────────────────
     # Pressing a media key did the right thing and showed nothing: the default
     # config calls wpctl and brightnessctl directly, and neither draws. This
