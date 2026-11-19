@@ -1,9 +1,15 @@
-# ponytail: daily nix flake update, committed directly once every host builds.
+# ponytail: twice-daily nix flake update, committed once the *server* hosts build.
 #
 # The gate is job order, not a GitHub required check: `required_status_checks` on
 # the branch would force every hand-made push through a PR too. A failing build
 # commits nothing — you get one red workflow run, which is the only thing worth
 # looking at. There is no PR to read, by design.
+#
+# Which hosts gate the commit is a role decision, not a host list: servers do,
+# desktops do not. A desktop package that stops compiling on a new nixpkgs must
+# not hold back an nginx security fix for a day (or forever, until someone fixes
+# it) — that coupling is what this split removes. The desktop hosts still build
+# and go red when they break; they just do not block.
 #
 # The commit is made with the `createCommitOnBranch` GraphQL mutation rather than
 # `git push`, because main requires verified signatures and a commit carrying the
@@ -23,11 +29,13 @@ name: update-flake-lock
 # 400-560 min from November onward (the 13:59 run was scheduled for 06:00), and
 # the 14th's run had not started 143 min past its slot. Their troubleshooting
 # docs say it outright: "To decrease the chance of delay, schedule your workflow
-# to run at a different time of the hour." Hence :17. Nothing here cares about
-# the exact hour, only that it happens daily, so wander off-peak and drop it.
+# to run at a different time of the hour." Hence :17. Twice a day, not once: the
+# hosts poll hourly, so the only thing a once-daily run buys is up to 24h of dead
+# time between an upstream fix and the lock that carries it. Nothing here cares
+# about the exact hour, so wander off-peak and drop it.
 on:
   schedule:
-    - cron: "17 6 * * *" # daily, ~06:17 UTC; off the hour on purpose
+    - cron: "17 6,18 * * *" # twice daily, ~06:17 and ~18:17 UTC; off the hour on purpose
   workflow_dispatch: # manual trigger
 
 permissions:
@@ -42,7 +50,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     outputs:
-      hosts: ${{ steps.list.outputs.hosts }}
+      servers: ${{ steps.list.outputs.servers }}
+      desktops: ${{ steps.list.outputs.desktops }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
@@ -50,9 +59,25 @@ jobs:
       - run: nix flake update
 
       # Discovered from the flake, never listed here: a new host in hosts/<name>/
-      # joins the build on its own.
+      # joins the build on its own. The role split is discovered the same way —
+      # a host is a server when its file imports profiles/server.nix, which is
+      # also the file that puts it on the small channel. "Runs the small channel"
+      # and "must not be blocked by a desktop breakage" stay one predicate, so
+      # there is no second list to keep in sync.
       - id: list
-        run: echo "hosts=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+        run: |
+          hosts=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames | tr -d '[]" ' | tr ',' ' ')
+          servers=''; desktops=''
+          for host in $hosts; do
+            if grep -q 'profiles/server\.nix' "hosts/$host/default.nix" 2>/dev/null; then
+              servers="$servers $host"
+            else
+              desktops="$desktops $host"
+            fi
+          done
+          echo "servers=${servers# }" >> "$GITHUB_OUTPUT"
+          echo "desktops=${desktops# }" >> "$GITHUB_OUTPUT"
+          echo "servers:${servers# } desktops:${desktops# }"
 
       # Hand the updated lock to the build job; it is not committed yet.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -61,15 +86,23 @@ jobs:
           path: flake.lock
           retention-days: 1
 
-  build:
+  # One runner per role, not a matrix: a matrix needs every job to succeed before
+  # `publish` runs, which is exactly the coupling this split exists to remove.
+  # Two jobs also keep the cache locality described below — one store per role, so
+  # the second server reuses what the first fetched — at the cost of the two roles
+  # no longer sharing a store. That trade is the point: the small server closure
+  # stops waiting behind kirito's 12 GiB one. Each role gets its own cache key, or
+  # the two would overwrite each other's primary entry.
+  build-servers:
     needs: update
+    if: needs.update.outputs.servers != ''
     runs-on: ubuntu-latest
-    # One runner, all hosts, in sequence. Each matrix job got a fresh runner with
-    # a COLD nix store, so run 43418143255 re-downloaded the same shared NixOS
-    # closure per host: kirito 5.4 GiB / 2262 paths and 227 derivations built
-    # from scratch, while mail hit the cache for 0.0 KiB. The local store IS the
-    # cache: on one runner the 2nd host reuses what the 1st fetched
-    # (run 43422438336 pulled 5.5 GiB once, then 176 MiB, and went
+    # One runner, all hosts of this role, in sequence. Each matrix job got a fresh
+    # runner with a COLD nix store, so run 43418143255 re-downloaded the same
+    # shared NixOS closure per host: kirito 5.4 GiB / 2262 paths and 227
+    # derivations built from scratch, while mail hit the cache for 0.0 KiB. The
+    # local store IS the cache: on one runner the 2nd host reuses what the 1st
+    # fetched (run 43422438336 pulled 5.5 GiB once, then 176 MiB, and went
     # 15m29s -> 6m29s).
     #
     # Cross-run caching via cache-nix-action, NOT magic-nix-cache. GitHub's cache
@@ -101,7 +134,7 @@ jobs:
 
       # Restore before building so the slow non-upstream paths are already here.
       #
-      # The key is the lock hash, so there is exactly ONE entry and it is only
+      # The key is the lock hash, so there is one entry per role and it is only
       # rewritten when the lock moves. That is deliberate, but it means the very
       # first save is the only save: the action logs `Not collecting garbage. /
       # Not saving a new cache.` on every later run (its own docs: "this input
@@ -113,26 +146,26 @@ jobs:
       # to tar them up: the frozen entry held pi-1.5.2 only as a .drv, and every
       # later run "hit the cache" and rebuilt it anyway. The build step now
       # passes --out-link, which roots the toplevels for the rest of the job, and
-      # the cap is above the ~5.5 GiB all three closures need.
+      # the cap is above the closure of the role it caches.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+          primary-key: nix-${{ runner.os }}-servers-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-servers-
           # stock nixpkgs paths are a fast re-download from cache.nixos.org; only
           # the non-upstream ones (pi-1.5.2 188 MiB, formatelf-0.2.2 48 MiB) are
           # worth the repo's 10 GB cache budget
           gc-max-store-size-linux: 6G
           purge: true
-          purge-prefixes: nix-${{ runner.os }}-
+          purge-prefixes: nix-${{ runner.os }}-servers-
           purge-last-accessed: P7D
           purge-primary-key: never
 
-      - name: Build every host
+      - name: Build every server host
         env:
-          HOSTS: ${{ needs.update.outputs.hosts }}
+          HOSTS: ${{ needs.update.outputs.servers }}
         run: |
           failed=''
-          for host in $(printf '%s' "$HOSTS" | tr -d '[]" ' | tr ',' ' '); do
+          for host in $HOSTS; do
             echo "::group::build $host"
             # --out-link, not --no-link: the result symlink is a GC root, which is
             # what stops the cache action's post-job gc from deleting the output
@@ -147,8 +180,54 @@ jobs:
           done
           [ -z "$failed" ] || { echo "::error::failed hosts:$failed"; exit 1; }
 
+  # Same shape, own cache, and deliberately NOT a dependency of `publish`.
+  build-desktops:
+    needs: update
+    if: needs.update.outputs.desktops != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: keep-outputs = true
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: flake-lock
+
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-desktops-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-desktops-
+          gc-max-store-size-linux: 6G
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-desktops-
+          purge-last-accessed: P7D
+          purge-primary-key: never
+
+      - name: Build every desktop host
+        env:
+          HOSTS: ${{ needs.update.outputs.desktops }}
+        run: |
+          failed=''
+          for host in $HOSTS; do
+            echo "::group::build $host"
+            if nix build --out-link "/tmp/result-$host" --print-out-paths \
+                 ".#nixosConfigurations.$host.config.system.build.toplevel"; then
+              echo "$host OK"
+            else
+              failed="$failed $host"
+            fi
+            echo '::endgroup::'
+          done
+          [ -z "$failed" ] || { echo "::error::failed hosts:$failed"; exit 1; }
+
   publish:
-    needs: [update, build]
+    needs: [update, build-servers]
+    # `skipped` when there are no server hosts at all — a vacuous pass, not a
+    # failure. A skipped desktop job never reaches here, because it is not in
+    # `needs`: desktop breakage goes red without holding the lock back.
+    if: needs.build-servers.result == 'success' || needs.build-servers.result == 'skipped'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

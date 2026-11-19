@@ -176,10 +176,17 @@ in
   # Daily rebuild from GitHub. Safe again now: no secret is needed to build this
   # host (the initrd tailscale node state lives on the machine's own ESP).
   # allowReboot = false: a reboot means unlocking the disk over the tailnet.
+  #
+  # hourly, not daily: there is one shared flake.lock and CI refreshes it on its
+  # own schedule, so a daily poll here wastes up to a full day on top of the day
+  # CI can already take. GitHub's scheduler is also late by hours (see the
+  # update-flake-lock workflow), which a fixed time cannot align with. Polling
+  # every hour makes that jitter irrelevant: the run that finds a new commit does
+  # the switch, the other 23 are a no-op rebuild (measured: 9 s).
   system.autoUpgrade = {
     enable = true;
     flake = "github:Leoguy77/nixos-config#mail";
-    dates = "daily";
+    dates = "hourly";
     persistent = true;
     allowReboot = false;
   };
