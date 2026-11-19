@@ -96,7 +96,25 @@ window-rule {
 }
 
 // niri has no idle daemon of its own; swayidle does the lock-then-blank ladder.
-// `-w` also covers suspend via the before-sleep hook.
+//
+// TWO swayidle processes, and the timeout ladder deliberately has no `-w`.
+// `-w` makes swayidle waitpid() the command it ran (main.c:173), which blocks
+// its whole event loop -- so a later timeout cannot fire until the earlier
+// command exits. With one `-w` ladder that produced two real bugs:
+//
+//   - the 600s blank was queued behind hyprlock and fired the instant the
+//     machine was unlocked, so the screen went black right after typing the
+//     password and needed input to come back;
+//   - and it never blanked at all during a long lock, because it could not fire
+//     while hyprlock was still up.
+//
+// Measured, not inferred: with -w, a 3s blank timeout sitting behind a 6s
+// command ran at t=7s -- the same second the 6s command exited -- instead of at
+// t=3s.
+//
+// Only `before-sleep` genuinely wants `-w`, because there the blocking is the
+// point: logind suspends as soon as swayidle drops its delay inhibitor, so
+// hyprlock has to be on screen before that happens. Hence the second process.
 //
 // One KDL string = one argv entry: spawn-at-startup execs directly, with no
 // shell. swayidle matches argv[i] against the literal words `timeout` and
@@ -114,10 +132,12 @@ window-rule {
 // wlr-screencopy, which niri also serves (src/handlers/mod.rs:22,86,95,637).
 // Unlock was proven in a nested niri session before this line was changed --
 // a locker that cannot be unlocked strands the machine with no way back in.
-spawn-at-startup "swayidle" "-w" \
+spawn-at-startup "swayidle" \
   "timeout" "300" "hyprlock" \
-  "timeout" "600" "niri msg action power-off-monitors" \
-  "before-sleep" "hyprlock"
+  "timeout" "600" "niri msg action power-off-monitors"
+
+// The suspend hook, on its own so `-w` cannot stall the ladder above.
+spawn-at-startup "swayidle" "-w" "before-sleep" "hyprlock"
 
 // Noctalia, for the top bar. It REPLACES waybar, which is no longer installed.
 // The roles it does not take -- notifications, OSD, clipboard, wallpaper,
