@@ -51,6 +51,29 @@ in
         (pkgs.writeShellScriptBin "bili" ''
           exec ${pkgs.nodejs}/bin/node ${piBillionContext}/dist/index.js "$@"
         '')
+        # kisski-key: prints the current KISSKI API key from 1Password.
+        # The key index lives in a counter file owned by the keyfailover
+        # extension — this only reads it. Pi re-resolves models.json `!command`
+        # apiKeys on every provider request, so after keyfailover advances the
+        # counter the very next retry uses the next key. All three keys stay in
+        # 1Password; nothing secret is on disk.
+        (pkgs.writeShellScriptBin "kisski-key" ''
+          n=$(cat "''${XDG_CACHE_HOME:-$HOME/.cache}/pi-kisski-key" 2>/dev/null || echo 0)
+          # Field labels are inconsistent in 1Password (APi/API), so address
+          # them by field id: stable, and renaming a field cannot break this.
+          case "$n" in
+            1) field='twnicdakxjacjnfsiuilfk2n2m' ;;
+            2) field='vtcnpt2k43ixp5t6er6nj7btzi' ;;
+            *) field='fzedhxi7av7sctch5o4u6httqi' ;;
+          esac
+          if key=$(op read "op://Personal/Academic Cloud/$field" 2>/dev/null); then
+            echo "$key"
+          else
+            # Counter points at a field that no longer exists: fall back to key 1
+            # rather than failing every request until the cache file is cleared.
+            op read 'op://Personal/Academic Cloud/fzedhxi7av7sctch5o4u6httqi'
+          fi
+        '')
       ];
 
     # billion-context: context-compression proxy. The pi extension (registered
@@ -127,18 +150,28 @@ in
       source = ./../../../pi-extensions/sudo-askpass/index.ts;
     };
 
+    # keyfailover: advance the KISSKI key counter when a key is rejected.
+    # Pi treats 401/403 as terminal and retries 429 on the same key, so this
+    # rewrites those errors to a retryable one; the retry re-resolves
+    # models.json's !command apiKey and picks up the next key.
+    home.file.".pi/agent/extensions/keyfailover.ts" = lib.mkIf cfg.extensions {
+      source = ./../../../pi-extensions/keyfailover/index.ts;
+    };
+
     # Custom model providers (KISSKI). Safe to commit: the 1Password CLI
     # command reads the actual API key at runtime, so no secret in the file.
-    # Pi resolves !command at request time. Since 1Password caches the session,
-    # only the first call per session prompts for approval; subsequent calls
-    # are fast. No shell wrapper needed.
+    # Pi re-resolves the !command on every provider request (verified: 4
+    # requests -> 4 invocations), so kisski-key can switch keys between
+    # attempts. The keyfailover extension advances that counter on 401/403/429,
+    # which Pi would otherwise treat as terminal (401/403) or retry blindly on
+    # the same key (429). All three keys stay in 1Password.
     home.file.".pi/agent/models.json".text = ''
       {
         "providers": {
           "kisski": {
             "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
-            "apiKey": "!op read 'op://gnh/Kisski/Kisski/API-Key'",
+            "apiKey": "!kisski-key",
             "models": [
               {
                 "id": "deepseek-v4-flash-0731",
@@ -171,7 +204,25 @@ in
                   "xhigh": null,
                   "max": "max"
                 },
+                "input": ["text", "image"],
+                "contextWindow": 1000000,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              },
+              {
+                "id": "glm-5.3",
+                "name": "GLM 5.3 (KISSKI)",
+                "reasoning": true,
                 "input": ["text"],
+                "contextWindow": 1000000,
+                "maxTokens": 16384,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              },
+              {
+                "id": "mistral-large-4-1t-a52b",
+                "name": "Mistral Large 4 1T A52B (KISSKI)",
+                "reasoning": true,
+                "input": ["text", "image"],
                 "contextWindow": 1000000,
                 "maxTokens": 16384,
                 "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
