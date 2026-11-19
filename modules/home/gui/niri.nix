@@ -298,6 +298,24 @@ in
     # theme rather than needing a palette restated here.
     services.swayosd.enable = true;
 
+    # ── Cursor theme ──────────────────────────────────────────────────────
+    # Nothing installed a cursor theme at all, so niri logged
+    # `error loading xcursor col-resize@48: no default icon` on every window
+    # resize and fell back to whatever single cursor it could find. The
+    # dconf/gtk settings named `breeze_cursors`, a Plasma theme that is not
+    # installable on its own (kdePackages.breeze is 1.8 GiB for the icon set).
+    #
+    # adwaita-icon-theme is ALREADY in both the system and home closures (it
+    # comes in with GTK) and ships a full share/icons/Adwaita/cursors tree, so
+    # pointing at it adds nothing to download. Only the name had to change:
+    # `Adwaita`, not `breeze_cursors`.
+    home.pointerCursor = {
+      enable = true;
+      name = "Adwaita";
+      package = pkgs.adwaita-icon-theme;
+      size = 24; # matches the gtk settings already on disk
+    };
+
     # ── Clipboard history ─────────────────────────────────────────────────
     # The HM module runs two watchers (`wl-paste --watch cliphist store`), one
     # for text and one for images, and declares cliphist itself. Only the
