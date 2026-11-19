@@ -1,54 +1,91 @@
-# Noctalia config for the volume popup ONLY.
+# Noctalia, used for its BAR only.
 #
-# This file is NOT where noctalia keeps its own settings. The shell writes
-# ~/.local/state/noctalia/settings.toml, which overrides whatever is here
-# (`noctalia config export --help`: "every *.toml in the active config dir, then
-# the state-dir settings.toml overrides"). That is exactly why the switches
-# below are safe: they are read as a base layer, and anything the shell saved
-# during a test run wins. If a setting here appears to do nothing, check
-# ~/.local/state/noctalia/settings.toml before editing this file.
+# It replaces waybar on the top edge. Every other role noctalia has is switched
+# off in favour of the single-purpose shell this repo already sets up and has
+# live-tested: swaync for notifications, swayosd for the OSD, swaybg for the
+# wallpaper, cliphist for the clipboard, hyprlock for the locker. Those stay,
+# because each one is proven here and noctalia's replacement for it is not.
 #
-# Noctalia is a complete desktop shell (bar, notifications, lockscreen, launcher,
-# OSD, clipboard, wallpaper). This repo already has all of that, and each piece
-# is already themed and working, so every one of those roles is switched OFF
-# below -- except the one thing nothing here could do.
+# That is why the widget list below is narrower than noctalia's default: a
+# widget whose panel is switched off opens an empty window, which looks broken
+# rather than absent. So `notifications` (swaync owns the daemon), `clipboard`
+# (cliphist owns the history), and `wallpaper` (swaybg owns the background) are
+# all left out of `start` / `end` even though noctalia defaults to them.
 #
-# The exception is the control center's audio panel: real Output and Input
-# sliders plus an "Application Volumes" list of live playback streams. waybar
-# cannot draw this (0.16.0 has no popover framework at all -- only right-click
-# GTK context menus, src/AModule.cpp:236), and its pulseaudio/slider module needs
-# min-height 34, taller than this 30px bar, while being permanently visible.
-# So the popup is noctalia's, the bar stays waybar's.
+# NOTE: this file is a base layer only. The shell writes its own state to
+# ~/.local/state/noctalia/settings.toml, and `noctalia config export --help`
+# states the order: "every *.toml in the active config dir, then the state-dir
+# settings.toml overrides". A value changed in noctalia's own Settings UI is
+# saved to the state file and therefore WINS over anything set here. If a key
+# below looks ignored, check the state file before editing this one.
 
-# Only the panel. A visible bar would be a second bar under waybar's.
-[bar.default]
-enabled = false
-
-# The setup wizard is the "Welcome to Noctalia" window that asks for wallpaper,
-# mode and palette on first launch. Declining its offer to own the desktop.
 [shell]
+# The first-run "Welcome to Noctalia" window. Already dismissed on this host;
+# without this it can reappear after the state dir is wiped.
 setup_wizard_enabled = false
-clipboard_enabled = false
-# polkit-gnome already draws the password prompt (services.polkit-gnome).
-polkit_agent = false
-# Only advisory: the tray icon lives in waybar, not here.
-launch_apps_as_systemd_services = false
 
-# swanc holds org.freedesktop.Notifications. Noctalia claiming it too would be
-# a race for the name, and the loser loses notifications silently.
+# Noctalia's own polkit agent. services.polkit-gnome stays enabled in niri.nix,
+# so this must remain false: two agents answer the same request and the loser's
+# dialog is left orphaned on screen.
+polkit_agent = false
+
+# Off — cliphist already watches wl-paste and the clipboard widget is dropped
+# from the bar below, so a second watcher would only duplicate the work.
+clipboard_enabled = false
+
+[bar.default]
+enabled = true
+
+# Top edge, floating island. `margin_ends = 100` and `reserve_space = true` are
+# what make it a centered capsule rather than a full-width strip; both are the
+# packaged defaults, restated here so the shape is visible in this file.
+position = "top"
+thickness = 30
+radius = 12
+margin_ends = 100
+reserve_space = true
+
+# Left: launcher (opens noctalia's app launcher), wallpapers, workspace pills.
+# The default puts `launcher` first, which is the only entry point worth having
+# now that waybar's click targets are gone.
+start = [ "launcher", "workspaces" ]
+
+# Right, in order. Everything here was opened and checked on this machine:
+#   volume          -> control-center / audio panel with real sink + app sliders
+#   control-center  -> the same panel, plus the shortcuts grid
+#   session         -> power menu (lock, logout, reboot, shutdown)
+#   tray            -> StatusNotifier host; blueman and nm-applet attach to it
+# network / bluetooth / battery / brightness / media are plain indicators.
+end = [
+  "media",
+  "tray",
+  "network",
+  "bluetooth",
+  "volume",
+  "brightness",
+  "battery",
+  "control-center",
+  "session",
+]
+
+# swaync holds org.freedesktop.Notifications. Two daemons cannot both own that
+# name, and swaync is the one with a configured theme and a proven history, so
+# noctalia's daemon stays off.
 [notification]
 enable_daemon = false
 
-# hyprlock is the locker. Two ext-session-lock clients cannot both lock.
-[lockscreen]
-enabled = false
-
-# swayosd draws the volume/brightness pill on the media keys. A second OSD on
-# the same events would stack two pills on every keypress.
+# swayosd-client drives the media keys from config.kdl and draws its own OSD.
+# Enabling this would give every keypress two popups.
 [osd]
 enabled = false
 
-# swaybg draws ~/.config/niri/wallpaper.png. Noctalia's wallpaper service would
-# put a second layer surface over it.
+# swaybg draws ~/.config/niri/wallpaper.png. Noctalia would draw a second
+# surface over it.
 [wallpaper]
+enabled = false
+
+# hyprlock locks the session; /etc/pam.d/hyprlock is declared in
+# profiles/desktops/niri.nix. This must stay off -- a locker that cannot
+# authenticate is a soft lockout, and noctalia's PAM service is not declared.
+[lockscreen]
 enabled = false

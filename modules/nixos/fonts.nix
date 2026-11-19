@@ -28,8 +28,8 @@
         # The Nerd Font glyph set (Powerline separators, git/Folder/OS icons,
         # the e0b0-fffd range) as ONE fallback font rather than a patched copy
         # of every family. fontconfig falls back to it for any codepoint the
-        # requested font lacks, so kitty on "Fira Code" and waybar on "Noto
-        # Sans" both get the glyphs without each needing a Nerd Font variant.
+        # requested font lacks, so kitty on "Fira Code" and noctalia on "sans-serif"
+        # both get the glyphs without each needing a Nerd Font variant.
         nerd-fonts.symbols-only
       ];
       fontconfig.defaultFonts = {

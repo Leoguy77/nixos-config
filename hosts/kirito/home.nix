@@ -26,7 +26,7 @@
   modules.home.gui.desktop.enable = true;
   modules.home.gui.pi.enable = true;
 
-  # Niri session: compositor config, waybar, fuzzel, swaylock.
+  # Niri session: compositor config, noctalia bar, fuzzel, hyprlock.
   modules.home.desktops.niri.enable = true;
 
   # TUI tools

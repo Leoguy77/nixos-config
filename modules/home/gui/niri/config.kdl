@@ -3,9 +3,11 @@
 // (mkOutOfStoreSymlink in niri.nix), so changes take effect without a rebuild.
 //
 // This file does NOT restate niri's defaults. It `include`s the default config
-// niri ships (632 lines: every standard bind, input default, window rule, and
-// the `spawn-at-startup "waybar"` that starts the bar) and only overrides what
-// is actually different. That works because the parser merges each node into
+// niri ships (632 lines: every standard bind, input default, window rule, and a
+// `spawn-at-startup "waybar"` that is now a no-op -- waybar is not installed,
+// noctalia draws the bar, and a missing binary in spawn-at-startup only logs an
+// error, it cannot break the session) and only overrides what is actually
+// different. That works because the parser merges each node into
 // `Config::default()`, and for the one section where merging would be wrong --
 // `binds {}` -- conflicting keys are REPLACED rather than rejected
 // (niri-config/src/lib.rs:219-231: "We replace conflicting binds, rather than
@@ -85,12 +87,10 @@ spawn-at-startup "swayidle" "-w" \
   "timeout" "600" "niri msg action power-off-monitors" \
   "before-sleep" "hyprlock"
 
-// Noctalia, for the audio popup on the bar's volume widget and nothing else.
-// Every other role it can play -- bar, notifications, lockscreen, OSD,
-// clipboard, wallpaper, launcher -- is switched off in noctalia.toml, because
-// this repo already has a working, themed piece for each of them. See that file
-// for the reasoning; this line exists only so `noctalia msg panel-toggle` has a
-// process to talk to.
+// Noctalia, for the top bar. It REPLACES waybar, which is no longer installed.
+// The roles it does not take -- notifications, OSD, clipboard, wallpaper,
+// lockscreen -- stay with swaync, swayosd, cliphist, swaybg and hyprlock, all
+// switched off in noctalia.toml. See that file for the reasoning.
 //
 // `-d` backgrounds it. `spawn-at-startup` execs directly and does not wait, so
 // a foreground noctalia would work too, but it would then be a child process
@@ -98,6 +98,11 @@ spawn-at-startup "swayidle" "-w" \
 // charge of its own lifetime and gives the same single instance the IPC socket
 // is per.
 spawn-at-startup "noctalia" "-d"
+
+// The widget set in noctalia.toml leaves out `wallpaper` and `clipboard`, so
+// those two keep their own clients below. The launcher widget on the left is
+// noctalia's own; Mod+D still opens fuzzel, which is a separate choice (fuzzel
+// is themed to the same palette and already muscle-memory on this box).
 
 // Notifications are not spawned here: swaync is a systemd user service
 // (modules/home/gui/niri.nix, services.swaync). Both it and mako claim the
