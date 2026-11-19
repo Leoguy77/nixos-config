@@ -187,9 +187,56 @@ in
       '';
     };
 
+    # ── Launcher ──────────────────────────────────────────────────────────
+    # fuzzel was running on its built-in defaults, which are Solarized light —
+    # background fdf6e3, a cream colour that read as a white box on an
+    # otherwise dark desktop. The HM module only writes fuzzel.ini when
+    # `settings` is non-empty, which is why there was no config file at all.
+    #
+    # Keys are the ones in the packaged example, `$out/etc/xdg/fuzzel/fuzzel.ini`
+    # (56-72), which lists every option with its default commented out. Colours
+    # are 8-digit RRGGBBAA. Catppuccin Mocha, same palette as waybar/hyprlock/
+    # swaync/wlogout.
+    #
+    # `dpi-aware = no` is deliberate: on `auto` fuzzel only honours the output's
+    # scaling factor when every monitor has scale 1, and this panel runs at
+    # 1.25. `no` makes it follow the scale instead, so the text is not tiny.
+    programs.fuzzel = {
+      enable = true;
+      settings = {
+        main = {
+          font = "Fira Code:size=11";
+          prompt = "❯ ";
+          dpi-aware = "no";
+          lines = 12;
+          width = 40;
+          horizontal-pad = 24;
+          vertical-pad = 16;
+          inner-pad = 8;
+          layer = "overlay";
+        };
+        colors = {
+          background = "1e1e2ee6";
+          text = "cdd6f4ff";
+          prompt = "89b4faff";
+          input = "cdd6f4ff";
+          placeholder = "6c7086ff";
+          match = "f9e2afff";
+          selection = "313244ff";
+          selection-text = "cdd6f4ff";
+          selection-match = "f9e2afff";
+          counter = "6c7086ff";
+          border = "89b4faff";
+        };
+        border = {
+          width = 2;
+          radius = 12;
+        };
+      };
+    };
+
     # ── Session programs ──────────────────────────────────────────────────
     home.packages = with pkgs; [
-      fuzzel # Mod+D launcher
       swayidle # idle -> lock -> blank, plus lock before suspend
       pavucontrol # mixer, opened from the bar
       libnotify # notify-send, for testing swaync from a shell
