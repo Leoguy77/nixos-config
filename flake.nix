@@ -18,8 +18,11 @@
     # NixOS unstable channel (primary)
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # NixOS stable channel (for critical packages)
-    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # NixOS stable channel (for critical packages).
+    # `release-26.05`, not `nixos-26.05`: same branch, but the `nixos-*` mirror
+    # lags it by hours, and a security fix should not wait for that. nginx 1.30.7
+    # (the nginx2shell fix, CVE-2026-123007/123633) sat in that gap.
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/release-26.05";
 
     # Home Manager
     home-manager = {
