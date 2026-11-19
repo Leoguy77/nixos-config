@@ -269,6 +269,18 @@ in
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
 
+    # ── Bluetooth applet ──────────────────────────────────────────────────
+    # `services.blueman` (from modules/nixos/bluetooth.nix) only installs the
+    # package and its dbus activation files — blueman ships an XDG autostart
+    # .desktop and NOTHING reads it here: niri has no xdg-autostart support
+    # (grep -i autostart src/main.rs turns up one comment about the env var and
+    # no loader), so the applet would never start. This declares the systemd
+    # user unit instead, which waybar's tray module then hosts.
+    #
+    # Requires=tray.target is in the unit's own definition, so it waits for a
+    # status notifier host rather than silently failing to draw.
+    services.blueman-applet.enable = true;
+
     # ── Default applications ──────────────────────────────────────────────
     # Nothing set a default file manager, so the winner was whatever package
     # happened to claim the type. kitty's helper declares `inode/directory`

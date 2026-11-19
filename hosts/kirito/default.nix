@@ -38,6 +38,7 @@
   # desktop is needed again.
   # modules.rdp.enable = true;
   modules.printing.enable = true;
+  modules.bluetooth.enable = true;
   modules.ssh.enable = true;
   modules.tailscale.enable = true;
   modules.tailscale.openFirewall = true; # direct WireGuard (41641) instead of DERP relay
