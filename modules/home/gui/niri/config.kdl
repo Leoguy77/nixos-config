@@ -42,6 +42,32 @@ input {
   }
 }
 
+// The focus ring. niri's default is a 4px #7fc8ff ring -- a light blue that is
+// not in this desktop's palette, and the only element that still looked like
+// stock niri once everything else was Catppuccin.
+//
+// `FocusRing` merges field by field (`BorderRule::merge_with`,
+// niri-config/src/appearance.rs:686-698: merge_on_off + merge_clone_opt on
+// width, then merge_color_gradient_opt on the colours), so setting only
+// `active-color` keeps the included width and inactive-colour. This is the
+// opposite of `touchpad`, which replaces wholesale -- see the note at the top
+// of this file.
+//
+// Blue rather than the more obvious mauve/peach accent: the ring sits directly
+// against the bar (also Catppuccin) and against app content, and blue #89b4fa
+// is the palette's own selection/focus colour (it is what fuzzel uses for its
+// border and prompt above).
+//
+// `layout {}` also silently forces `border` on when the section is written with
+// no explicit on/off (lib.rs:267-277), so `border` is left out of this block
+// entirely -- it stays off as the included default.
+layout {
+  focus-ring {
+    active-color "#89b4fa"
+    inactive-color "#45475a"
+  }
+}
+
 // The audio mixer is a dialog, not a document: it floats at a readable size
 // instead of swallowing a whole tile. niri tiles everything by default.
 // `window-rule` is append-only (`m_push!`, lib.rs:214), so this does not disturb
