@@ -46,12 +46,17 @@ input {
 // not in this desktop's palette, and the only element that still looked like
 // stock niri once everything else was Catppuccin.
 //
-// `FocusRing` merges field by field (`BorderRule::merge_with`,
-// niri-config/src/appearance.rs:686-698: merge_on_off + merge_clone_opt on
-// width, then merge_color_gradient_opt on the colours), so setting only
-// `active-color` keeps the included width and inactive-colour. This is the
-// opposite of `touchpad`, which replaces wholesale -- see the note at the top
-// of this file.
+// `BorderRule::merge_with` (niri-config/src/appearance.rs:686-698) merges field
+// by field -- merge_on_off, then merge_clone_opt on width, then
+// merge_color_gradient_opt on the colours -- so a partial block only overrides
+// what it names and keeps the rest of the included default. This is the
+// opposite of `touchpad`, which replaces wholesale (merge_clone!); see the note
+// at the top of this file.
+//
+// 2px rather than the default 4: at this display's 1.25 scale a 4px ring draws
+// 5 physical pixels of solid colour on every edge of the focused tile, which
+// reads as a frame bolted around the window rather than a focus cue. 2px draws
+// 2-3 and still stands out against #1e1e2e.
 //
 // Blue rather than the more obvious mauve/peach accent: the ring sits directly
 // against the bar (also Catppuccin) and against app content, and blue #89b4fa
@@ -63,6 +68,7 @@ input {
 // entirely -- it stays off as the included default.
 layout {
   focus-ring {
+    width 2
     active-color "#89b4fa"
     inactive-color "#45475a"
   }
