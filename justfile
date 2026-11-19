@@ -1,5 +1,5 @@
-# Run `just` inside `nix develop .#` — deploy and secrets both need sops, which
-# is deliberately not on the system PATH.
+# Run `just` inside `nix develop .#` to get the flake's tooling. sops and gpg are
+# also on the system PATH (modules/nixos/packages.nix), so secrets works either way.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # Default host for the deploy/iso recipes.
@@ -30,22 +30,64 @@ iso h=host:
 build h=host:
     nix build ".#nixosConfigurations.{{h}}.config.system.build.toplevel" --no-link --print-out-paths
 
-# Decrypt the secrets to stdout, deriving the PGP key from ~/.ssh/GPG.
-secrets:
+# Emergency path: refresh inputs, prove every server host builds, push the lock,
+# then deploy each one. For when waiting out CI's ~13h is not acceptable — a fresh
+# nginx/sudo/openssl advisory, not a routine bump.
+#
+# Push BEFORE deploying, not after: autoUpgrade pulls the *pushed* commit, so a
+# lock that was deployed but never pushed gets reverted on the host's next hourly
+# run. That ordering is the point of the recipe.
+#
+# Both the host list and the addresses are derived — server hosts from their
+# profile import, addresses from vars/. A new server needs no edit here.
+
+# Emergency input refresh across all server hosts.
+update-servers:
     #!/usr/bin/env bash
     set -euo pipefail
-    export GNUPGHOME=$(mktemp -d)
-    trap 'rm -rf "$GNUPGHOME"' EXIT
-    ssh-to-pgp -private-key -i ~/.ssh/GPG 2>/dev/null | gpg --batch --import 2>/dev/null
+
+    user=$(nix eval --raw --impure --expr '(import ./vars {}).username')
+    hosts=$(grep -l 'profiles/server\.nix' hosts/*/default.nix | cut -d/ -f2)
+    [ -n "$hosts" ] || { echo "update-servers: no server hosts" >&2; exit 1; }
+    echo "server hosts: $(echo $hosts)"
+
+    nix flake update
+
+    # Build every server before touching git, so a lock that does not compile
+    # never reaches the branch autoUpgrade reads.
+    for h in $hosts; do
+      echo ":: building $h"
+      nix build ".#nixosConfigurations.$h.config.system.build.toplevel" --no-link
+    done
+
+    # Commit only flake.lock, even if other files are dirty. `--` keeps git from
+    # reading the path as a flag. Signing comes from commit.gpgsign.
+    if git diff --quiet -- flake.lock; then
+      echo "flake.lock unchanged, nothing to push"
+    else
+      git commit -m "chore(deps): emergency lock bump" -- flake.lock
+      git push
+    fi
+
+    for h in $hosts; do
+      addr=$(nix eval --raw --impure --expr \
+        "(import ./vars {}).networking.hostsAddr.$h.ipv4")
+      echo ":: deploying $h to $user@$addr"
+      nixos-rebuild switch --flake ".#$h" \
+        --target-host "$user@$addr" --elevate=sudo
+    done
+
+# Decrypt the secrets to stdout. sops uses the PGP identity already in your
+# keyring: the Token2 card (23CDB62B…), tapped for PIN. No ssh-to-pgp step —
+# the card carries only subkeys and ~/.ssh/GPG is a *different* key that is not
+# a recipient in .sops.yaml.
+
+# Decrypt the secrets to stdout.
+secrets:
     sops -d secrets/secrets.sops.yaml
 
 # Re-encrypt to the current recipients in .sops.yaml. deploy.sh already does this for its own host.
 updatekeys:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    export GNUPGHOME=$(mktemp -d)
-    trap 'rm -rf "$GNUPGHOME"' EXIT
-    ssh-to-pgp -private-key -i ~/.ssh/GPG 2>/dev/null | gpg --batch --import 2>/dev/null
     sops updatekeys --yes secrets/secrets.sops.yaml
 
 # Format the tree.
