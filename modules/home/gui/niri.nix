@@ -240,7 +240,7 @@ in
       swayidle # idle -> lock -> blank, plus lock before suspend
       pavucontrol # mixer, opened from the bar
       libnotify # notify-send, for testing swaync from a shell
-      brightnessctl # XF86MonBrightness* binds from niri's defaults
+      brightnessctl # the backlight device swayosd-client drives on this box
       playerctl # XF86Audio* media keys from niri's defaults
       # Region screenshot + annotation, on Mod+Shift+S. niri's own screenshot
       # UI (Print) captures but cannot annotate, so these add the markup pass.
@@ -268,6 +268,16 @@ in
     # prompt does not drag in a Qt/Kirigami stack, and home-manager already has
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
+
+    # ── Volume / brightness OSD ───────────────────────────────────────────
+    # Pressing a media key did the right thing and showed nothing: the default
+    # config calls wpctl and brightnessctl directly, and neither draws. This
+    # serves the GTK layer-shell bar (declared as a user unit, PartOf the
+    # wayland target) and the binds in config.kdl call swayosd-client, which
+    # does the action AND reports it. The packaged stylesheet is already
+    # theme-derived (alpha(@theme_bg_color, 0.8)), so it follows the dark GTK
+    # theme rather than needing a palette restated here.
+    services.swayosd.enable = true;
 
     # ── Clipboard history ─────────────────────────────────────────────────
     # The HM module runs two watchers (`wl-paste --watch cliphist store`), one

@@ -118,6 +118,33 @@ binds {
     spawn-sh "cliphist list | fuzzel --dmenu --prompt='Clipboard: ' --width=60 | cliphist decode | wl-copy";
   }
 
+  // ── Media keys ───────────────────────────────────────────────────────────
+  // The default config binds 12 XF86 keys straight to wpctl/brightnessctl/
+  // playerctl. Those do the action but draw NOTHING: press volume-up and the
+  // only feedback is that the audio is louder. This restates those keys to go
+  // through swayosd-client instead, which performs the same action and shows a
+  // bar while doing it.
+  //
+  // swayosd-client is a full replacement, not an add-on: `--output-volume
+  // raise` calls wpctl itself. Pairing it WITH wpctl would move the volume
+  // twice per press. Hence every key below is restated, not supplemented.
+  //
+  // allow-when-locked=true is carried over deliberately - volume and brightness
+  // are the two things that should still work on a locked screen.
+  //
+  // The media keys (play/stop/prev/next) are left alone: playerctl has no OSD
+  // to draw and swayosd's player bar needs `--player all|auto`, which is a
+  // behaviour change nobody asked for.
+  //
+  // Caps Lock gets an OSD too, on its own LED. `--caps-lock-led` reads
+  // /sys/class/leds/<name>, and this keyboard exposes input0::capslock.
+  XF86AudioRaiseVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "raise"; }
+  XF86AudioLowerVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "lower"; }
+  XF86AudioMute allow-when-locked=true { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
+  XF86AudioMicMute allow-when-locked=true { spawn "swayosd-client" "--input-volume" "mute-toggle"; }
+  XF86MonBrightnessUp allow-when-locked=true { spawn "swayosd-client" "--brightness" "raise"; }
+  XF86MonBrightnessDown allow-when-locked=true { spawn "swayosd-client" "--brightness" "lower"; }
+
   // Region screenshot you can mark up before sending.
   //
   // niri's own screenshot UI (Print, in default-config.kdl:611) saves to a file
