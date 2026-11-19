@@ -72,6 +72,17 @@ in
       # out-of-store file would go stale on every nixpkgs bump; this one is
       # re-pointed by home-manager.
       "niri/wallpaper.png".source = wallpaper;
+
+      # Noctalia's config. A store symlink is enough here, unlike config.kdl:
+      # this file holds no values worth iterating on (they are all switches that
+      # turn noctalia's own shell off), so a rebuild per change is fine.
+      #
+      # It belongs in ~/.config/noctalia/ and NOT in ~/.local/state/noctalia/.
+      # `noctalia config export --help` defines the order: "every *.toml in the
+      # active config dir, then the state-dir settings.toml overrides". The
+      # state dir is the shell's own scratch space; this is the layer underneath
+      # it.
+      "noctalia/noctalia.toml".source = ./niri/noctalia.toml;
     };
 
     # ── Bar ───────────────────────────────────────────────────────────────
@@ -300,13 +311,18 @@ in
               # keys and mouse wheel move the same amount.
               scroll-step = 5;
               max-volume = 100;
-              # Left click draws the OSD pill instead of opening a window: it is
-              # the same layer-shell surface the media keys already use, so it
-              # is themed and positioned for free. `+0` is the trick -- it shows
-              # the current level and changes nothing (unlike `raise`, which
-              # moves it a step). pavucontrol, which is a whole window, stays on
-              # right click for the per-application mixer.
-              on-click = "${pkgs.swayosd}/bin/swayosd-client --output-volume +0";
+              # Left click opens Noctalia's audio panel: Output and Input
+              # sliders that actually move the level, plus an "Application
+              # Volumes" list of live playback streams. That is the whole reason
+              # noctalia is installed -- see niri/noctalia.toml for why it is
+              # wired in as a popup and nothing else.
+              #
+              # `panel-toggle`, not `panel-open`: the widget is a toggle, so a
+              # second click has to close it. Verified both directions with
+              # `noctalia msg status` (panelOpen false -> true -> false).
+              on-click = "${pkgs.noctalia}/bin/noctalia msg panel-toggle control-center audio";
+              # pavucontrol is kept on right click for the full mixer -- routing
+              # and device profiles, which the panel does not expose.
               on-click-right = "${pkgs.pavucontrol}/bin/pavucontrol";
             };
 
@@ -665,7 +681,8 @@ in
     # ── Session programs ──────────────────────────────────────────────────
     home.packages = with pkgs; [
       swayidle # idle -> lock -> blank, plus lock before suspend
-      pavucontrol # mixer, opened from the bar
+      pavucontrol # full mixer, opened from the bar's volume right-click
+      noctalia # the audio popup; every other role it has is disabled
       libnotify # notify-send, for testing swaync from a shell
       brightnessctl # the backlight device swayosd-client drives on this box
       playerctl # XF86Audio* media keys from niri's defaults

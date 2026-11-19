@@ -40,6 +40,27 @@ input {
   }
 }
 
+// The audio mixer is a dialog, not a document: it floats at a readable size
+// instead of swallowing a whole tile. niri tiles everything by default.
+// `window-rule` is append-only (`m_push!`, lib.rs:214), so this does not disturb
+// the rules in default-config.kdl -- notably the Firefox PiP float.
+//
+// `open-floating` is the part that matters. Two size mechanisms were tried and
+// only one survives: `default-window-height { fixed N }` is merely a hint in the
+// initial xdg configure, and pavucontrol ignores it because it restores
+// width/height from ~/.config/pavucontrol.ini on every start. `max-height` is a
+// runtime clamp (apply_min_max_size, workspace.rs:830-841) and does hold.
+// Verified: 744x796 tiled -> floating at 744x640; niri remembers the floating
+// geometry afterwards.
+//
+// No width clamp: pavucontrol's three-tab layout is already narrow, and a cap
+// would clip the per-application stream list, which is the reason to open it.
+window-rule {
+  match app-id=r#"^org\.pulseaudio\.pavucontrol$"#
+  open-floating true
+  max-height 640
+}
+
 // niri has no idle daemon of its own; swayidle does the lock-then-blank ladder.
 // `-w` also covers suspend via the before-sleep hook.
 //
@@ -63,6 +84,20 @@ spawn-at-startup "swayidle" "-w" \
   "timeout" "300" "hyprlock" \
   "timeout" "600" "niri msg action power-off-monitors" \
   "before-sleep" "hyprlock"
+
+// Noctalia, for the audio popup on the bar's volume widget and nothing else.
+// Every other role it can play -- bar, notifications, lockscreen, OSD,
+// clipboard, wallpaper, launcher -- is switched off in noctalia.toml, because
+// this repo already has a working, themed piece for each of them. See that file
+// for the reasoning; this line exists only so `noctalia msg panel-toggle` has a
+// process to talk to.
+//
+// `-d` backgrounds it. `spawn-at-startup` execs directly and does not wait, so
+// a foreground noctalia would work too, but it would then be a child process
+// whose death niri never notices or restarts. The daemon flag leaves it in
+// charge of its own lifetime and gives the same single instance the IPC socket
+// is per.
+spawn-at-startup "noctalia" "-d"
 
 // Notifications are not spawned here: swaync is a systemd user service
 // (modules/home/gui/niri.nix, services.swaync). Both it and mako claim the

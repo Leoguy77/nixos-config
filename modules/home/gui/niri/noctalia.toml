@@ -1,0 +1,54 @@
+# Noctalia config for the volume popup ONLY.
+#
+# This file is NOT where noctalia keeps its own settings. The shell writes
+# ~/.local/state/noctalia/settings.toml, which overrides whatever is here
+# (`noctalia config export --help`: "every *.toml in the active config dir, then
+# the state-dir settings.toml overrides"). That is exactly why the switches
+# below are safe: they are read as a base layer, and anything the shell saved
+# during a test run wins. If a setting here appears to do nothing, check
+# ~/.local/state/noctalia/settings.toml before editing this file.
+#
+# Noctalia is a complete desktop shell (bar, notifications, lockscreen, launcher,
+# OSD, clipboard, wallpaper). This repo already has all of that, and each piece
+# is already themed and working, so every one of those roles is switched OFF
+# below -- except the one thing nothing here could do.
+#
+# The exception is the control center's audio panel: real Output and Input
+# sliders plus an "Application Volumes" list of live playback streams. waybar
+# cannot draw this (0.16.0 has no popover framework at all -- only right-click
+# GTK context menus, src/AModule.cpp:236), and its pulseaudio/slider module needs
+# min-height 34, taller than this 30px bar, while being permanently visible.
+# So the popup is noctalia's, the bar stays waybar's.
+
+# Only the panel. A visible bar would be a second bar under waybar's.
+[bar.default]
+enabled = false
+
+# The setup wizard is the "Welcome to Noctalia" window that asks for wallpaper,
+# mode and palette on first launch. Declining its offer to own the desktop.
+[shell]
+setup_wizard_enabled = false
+clipboard_enabled = false
+# polkit-gnome already draws the password prompt (services.polkit-gnome).
+polkit_agent = false
+# Only advisory: the tray icon lives in waybar, not here.
+launch_apps_as_systemd_services = false
+
+# swanc holds org.freedesktop.Notifications. Noctalia claiming it too would be
+# a race for the name, and the loser loses notifications silently.
+[notification]
+enable_daemon = false
+
+# hyprlock is the locker. Two ext-session-lock clients cannot both lock.
+[lockscreen]
+enabled = false
+
+# swayosd draws the volume/brightness pill on the media keys. A second OSD on
+# the same events would stack two pills on every keypress.
+[osd]
+enabled = false
+
+# swaybg draws ~/.config/niri/wallpaper.png. Noctalia's wallpaper service would
+# put a second layer surface over it.
+[wallpaper]
+enabled = false
