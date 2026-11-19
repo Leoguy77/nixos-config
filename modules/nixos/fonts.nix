@@ -24,6 +24,13 @@
         liberation_ttf
         fira-code
         fira-code-symbols
+
+        # The Nerd Font glyph set (Powerline separators, git/Folder/OS icons,
+        # the e0b0-fffd range) as ONE fallback font rather than a patched copy
+        # of every family. fontconfig falls back to it for any codepoint the
+        # requested font lacks, so kitty on "Fira Code" and waybar on "Noto
+        # Sans" both get the glyphs without each needing a Nerd Font variant.
+        nerd-fonts.symbols-only
       ];
       fontconfig.defaultFonts = {
         monospace = lib.mkDefault [ "Fira Code" ];
