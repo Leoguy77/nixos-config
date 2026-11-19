@@ -26,7 +26,7 @@
 # judgement. To opt in, add the two lines:
 #   imports = [ ./state.nix ];
 #   modules.disk.ephemeralRoot = true;
-{ inputs, ... }:
+{ inputs, pkgs, ... }:
 {
   imports = [
     ./desktop.nix
@@ -72,4 +72,38 @@
   # can work on this disk layout. Proven with pm_test=core: hibernation entry now
   # runs to "Allocated 6208020 kbytes" where before it never started at all.
   systemd.sleep.settings.Sleep.HibernateMode = "shutdown";
+
+  # Revive the touchpad after resuming from hibernation. It comes back dead:
+  # the controller (i2c_designware on LPSS 0000:00:15.1, touchpad chip at 0x2c)
+  # logs "controller timed out", "timeout in disabling adapter" and then
+  # thousands of "timeout waiting for bus ready", while the device node, the
+  # libinput listing and the sysfs bindings all still look healthy. No probe
+  # error anywhere -- the bus is simply silent, so rebinding i2c_hid, reloading
+  # i2c_hid/i2c_hid_acpi/hid_multitouch, and unbinding the designware platform
+  # device all leave it dead.
+  #
+  # Removing the PCI function and rescanning does bring it back, and is the
+  # only thing that does: it recreates the adapter, the client device is
+  # re-enumerated and i2c_hid probes it for real. Verified by hand on this
+  # machine after a resume had left the bus dead -- the rescan produced a fresh
+  # enumeration and the last "timeout waiting for bus ready" in the journal is
+  # the one immediately before it.
+  #
+  # Nothing else on 0000:00:15.1 shares the bus, so re-adding the function
+  # cannot disturb another device.
+  #
+  # Hooked through system-sleep, systemd's own pre/post callout around
+  # write_state, and not powerManagement.resumeCommands, which fires on any
+  # resume and would churn the controller after every suspend. Hibernation only.
+  environment.etc."systemd/system-sleep/touchpad-hibernate".source =
+    pkgs.writeShellScript "touchpad-hibernate" ''
+      # Only hibernation leaves the bus wedged; leave suspend alone.
+      [ "$2" = "hibernate" ] || exit 0
+      [ "$1" = "post" ] || exit 0
+
+      # Wait for the restored system to settle before poking the controller.
+      sleep 1
+      echo 1 > /sys/bus/pci/devices/0000:00:15.1/remove
+      echo 1 > /sys/bus/pci/rescan
+    '';
 }
