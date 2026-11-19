@@ -117,4 +117,27 @@ binds {
   Mod+X hotkey-overlay-title="Clipboard History" {
     spawn-sh "cliphist list | fuzzel --dmenu --prompt='Clipboard: ' --width=60 | cliphist decode | wl-copy";
   }
+
+  // Region screenshot you can mark up before sending.
+  //
+  // niri's own screenshot UI (Print, in default-config.kdl:611) saves to a file
+  // or the clipboard but cannot annotate - there is no arrow, text, blur or
+  // brush code in src/ui/screenshot_ui.rs. So Print stays for "grab the whole
+  // screen, done", and this is for "grab a region, circle the thing, paste it
+  // into a chat".
+  //
+  // slurp picks the region, grim captures it (niri serves wlr-screencopy), and
+  // satty annotates. satty's default copy command is xclip, which does not
+  // exist on Wayland, so `--copy-command wl-copy` is load-bearing: without it
+  // the copy button silently does nothing.
+  //
+  // `--actions-on-enter save-to-clipboard,exit` makes Return copy AND close;
+  // the `exit` half is required - actions-on-enter defaults to an empty list
+  // (configuration.rs:760), so the flag alone replaces the default and leaves
+  // the window open after copying. Escape already defaults to exit
+  // (configuration.rs:761), so it needs no flag. No -o, so no directory fills
+  // up with screenshots nobody asked to keep.
+  Mod+Shift+S hotkey-overlay-title="Screenshot region" {
+    spawn-sh "grim -g \"$(slurp)\" - | satty --filename - --copy-command wl-copy --actions-on-enter save-to-clipboard,exit";
+  }
 }

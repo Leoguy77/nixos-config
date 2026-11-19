@@ -242,6 +242,12 @@ in
       libnotify # notify-send, for testing swaync from a shell
       brightnessctl # XF86MonBrightness* binds from niri's defaults
       playerctl # XF86Audio* media keys from niri's defaults
+      # Region screenshot + annotation, on Mod+Shift+S. niri's own screenshot
+      # UI (Print) captures but cannot annotate, so these add the markup pass.
+      # wl-clipboard, already present, is satty's copy target.
+      grim
+      slurp
+      satty
       xwayland-satellite # runs X11 apps; niri execs it by bare name on demand
       swaybg # draws the wallpaper; see the note in config.kdl
     ];
