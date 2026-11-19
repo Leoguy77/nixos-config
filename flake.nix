@@ -18,11 +18,15 @@
     # NixOS unstable channel (primary)
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # NixOS stable channel (for critical packages).
-    # `release-26.05`, not `nixos-26.05`: same branch, but the `nixos-*` mirror
-    # lags it by hours, and a security fix should not wait for that. nginx 1.30.7
-    # (the nginx2shell fix, CVE-2026-123007/123633) sat in that gap.
-    nixpkgs-stable.url = "github:NixOS/nixpkgs/release-26.05";
+    # Small-gated unstable. A role profile that wants it sets `nixpkgs.pkgs`
+    # (see profiles/server.nix) — nothing here decides per host.
+    #
+    # Same branch history as `nixpkgs`, newer head: the large channel only
+    # advances once Hydra has built *all* of nixpkgs, while `-small` gates on a
+    # curated set (nginx, openssh, postgres, php, …) and publishes the day a fix
+    # lands. nginx 1.30.7 (the nginx2shell fix, CVE-2026-123007/123633) was here
+    # two days before it reached `nixos-unstable`.
+    nixpkgs-small.url = "github:NixOS/nixpkgs/nixos-unstable-small";
 
     # Home Manager
     home-manager = {
@@ -96,12 +100,6 @@
         config.allowUnfree = true;
       };
 
-      # Import stable pkgs for critical packages
-      pkgs-stable = import inputs.nixpkgs-stable {
-        inherit system;
-        config.allowUnfree = true;
-      };
-
       # Import custom lib and vars
       mylib = import ./lib { inherit (nixpkgs) lib; };
       myvars = import ./vars { inherit (nixpkgs) lib; };
@@ -112,7 +110,7 @@
           inputs
           mylib
           myvars
-          pkgs-stable
+          system
           ;
         sops-nix = inputs."sops-nix";
       };

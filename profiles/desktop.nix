@@ -15,7 +15,6 @@
   inputs,
   mylib,
   myvars,
-  pkgs-stable,
   lib,
   ...
 }:
@@ -105,7 +104,6 @@
         inherit
           mylib
           myvars
-          pkgs-stable
           inputs
           pkgs
           ;

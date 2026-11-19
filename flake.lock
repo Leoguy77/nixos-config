@@ -290,18 +290,18 @@
         "type": "github"
       }
     },
-    "nixpkgs-stable": {
+    "nixpkgs-small": {
       "locked": {
-        "lastModified": 1795091747,
-        "narHash": "sha256-wUx8qiRkAYNATiZCjCszeCvoffF2y5lFhgEDpwlnT6g=",
+        "lastModified": 1795067293,
+        "narHash": "sha256-E2/LZ61nkxegI0MoDz6NElmhfwIaMjoXG91FAQxXJy0=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "72c1f3ee201f30e3b5b357fd93dba670ea754afc",
+        "rev": "25f9ec8bb05173adf0d499f1f14a48bd474b1f76",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "release-26.05",
+        "ref": "nixos-unstable-small",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -388,7 +388,7 @@
         "llm-agents": "llm-agents",
         "nixos-mailserver": "nixos-mailserver",
         "nixpkgs": "nixpkgs_3",
-        "nixpkgs-stable": "nixpkgs-stable",
+        "nixpkgs-small": "nixpkgs-small",
         "pi-packages": "pi-packages",
         "pre-commit-hooks": "pre-commit-hooks",
         "sops-nix": "sops-nix"

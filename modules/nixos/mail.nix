@@ -20,7 +20,6 @@
 {
   config,
   pkgs,
-  pkgs-stable,
   lib,
   ...
 }:
@@ -469,10 +468,6 @@ in
     # ── nginx: ACME webroot + Roundcube ────────────────────────────────────
     services.nginx = {
       enable = true;
-      # Track the stable channel, not `pkgs`: nixos-unstable's nginx lags the
-      # security fixes that land on release-26.05 first (1.30.7, the nginx2shell
-      # fix, was there while unstable still shipped 1.30.6).
-      package = pkgs-stable.nginxStable;
       recommendedOptimisation = true;
       recommendedTlsSettings = true;
       serverTokens = false;

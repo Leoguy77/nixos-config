@@ -7,6 +7,9 @@
 # and add host-specific data (admin keys, firewall ports) as `modules.*` opts.
 {
   pkgs,
+  inputs,
+  system,
+  lib,
   ...
 }:
 {
@@ -22,6 +25,33 @@
     ../modules/nixos/tailscale.nix
     ../modules/nixos/zram.nix
   ];
+
+  # ── Channel ──────────────────────────────────────────────────────────────
+  # A server is exactly what the `-small` channel gates on (nginx, openssh,
+  # postgres, php, …), so it publishes security fixes days before the large
+  # channel does — nginx 1.30.7, the nginx2shell fix, landed there first.
+  #
+  # Setting `nixpkgs.pkgs` replaces the whole package set for this host, which
+  # is why the choice belongs here and not in flake.nix: importing this file IS
+  # the server role, so no host has to be listed anywhere else.
+  #
+  # CONTRACT: `nixpkgs.config` and `nixpkgs.pkgs` are mutually exclusive
+  # (nixos/modules/misc/nixpkgs.nix asserts it). Any host importing this file
+  # must keep `nixpkgs.config` empty — pass options like allowUnfree to the
+  # `import` below, not as `nixpkgs.config.*`. Deliberately not guarded with a
+  # custom check: nixpkgs' own assertion fails the evaluation with
+  # "system configures nixpkgs with an externally created instance", and CI
+  # builds every host, so a violation is a red run rather than a surprise.
+  nixpkgs.pkgs = import inputs.nixpkgs-small {
+    inherit system;
+    config.allowUnfree = true;
+  };
+
+  # `nixosSystem` sets this from the *calling* flake's nixpkgs input, which is
+  # still the large channel. Left alone it would pin `nix.registry.nixpkgs` to
+  # 1.30.6 on a host running 1.30.7, so `nix-shell -p nginx` would silently get
+  # the vulnerable build.
+  nixpkgs.flake.source = lib.mkForce inputs.nixpkgs-small.outPath;
 
   # Compose the pieces into a server.
   modules.accounts.enable = true;
