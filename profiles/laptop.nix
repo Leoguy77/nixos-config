@@ -60,4 +60,16 @@
 
   # Force real S3 (deep) suspend instead of s2idle (Modern Standby)
   boot.kernelParams = [ "mem_sleep_default=deep" ];
+
+  # Hibernate with a kernel-written image, not the firmware's. /sys/power/disk
+  # offers [platform] shutdown reboot suspend test_resume and systemd takes the
+  # first entry that works, so the default is always `platform` -- ACPI S4, where
+  # the firmware is expected to save memory. It cannot: swap here is LUKS-
+  # encrypted, so nothing outside the kernel can write the image, and the
+  # matching EFI HibernateLocation variable is never created either (systemd
+  # skips it when resume= is on the cmdline). `shutdown` is the kernel writing
+  # the image to swap itself and then powering off, which is the only mode that
+  # can work on this disk layout. Proven with pm_test=core: hibernation entry now
+  # runs to "Allocated 6208020 kbytes" where before it never started at all.
+  systemd.sleep.settings.Sleep.HibernateMode = "shutdown";
 }
