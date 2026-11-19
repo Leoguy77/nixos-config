@@ -9,10 +9,9 @@
  *
  * So this extension only needs to advance a counter. kisski-key reads it.
  *
- * ponytail: counter is a plain file in the cache dir and `tried` lives in
- * memory, so the count resets at the start of each run and the index persists
- * across sessions (sticky to the last key that worked). Good enough for 3
- * keys; a journal would only matter if you wanted per-key cooldown/expiry.
+ * ponytail: counter is a plain file in the cache dir, so the index persists
+ * across sessions (sticky to the last key tried). Good enough for 3 keys; a
+ * journal would only matter if you wanted per-key cooldown/expiry.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -43,29 +42,27 @@ function writeIndex(n: number): void {
 }
 
 export default function (pi: ExtensionAPI): void {
-  let tried = 0;
-
   pi.on("message_end", (event) => {
     const message = event.message;
     if (message.role !== "assistant") return;
-
-    if (message.stopReason !== "error") {
-      // A good response means the current key works; keep using it.
-      tried = 0;
-      return;
-    }
+    if (message.stopReason !== "error") return; // this key works; stay on it
 
     const error = message.errorMessage ?? "";
     const status = /^(\d{3})\b/.exec(error)?.[1];
     if (!status || !RETRY_STATUSES.includes(status)) return;
 
-    // Every key has now failed: leave the error alone so Pi stops instead of
-    // looping back to a key this run already rejected.
-    if (tried >= KEY_COUNT - 1) return;
-
-    tried += 1;
+    // Always advance, wrapping back to the first key. A rate-limited key has
+    // usually cooled down by the time we come round again — Pi spaces attempts
+    // by baseDelayMs * 2^attempt, capped at 60s — so wrapping recovers from a
+    // transient 429 that a one-way walk leaves stuck on the last key forever.
+    // The loop cannot run away: Pi's own retry budget (maxRetries) bounds how
+    // many attempts happen in one run.
     writeIndex((readIndex() + 1) % KEY_COUNT);
 
-    return { message: { ...message, errorMessage: `429: ${error}` } };
+    // 429 is already retryable; rewriting 401/403 into one is what makes Pi
+    // retry those instead of failing the request outright. Don't prefix a 429
+    // that already is one, or the message reads "429: 429: ...".
+    const rewritten = status === "429" ? error : `429: ${error}`;
+    return { message: { ...message, errorMessage: rewritten } };
   });
 }
