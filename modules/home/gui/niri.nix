@@ -79,113 +79,530 @@ in
     # does `spawn-at-startup "waybar"`, so a unit would race it and draw two
     # bars. The module still installs the package (home.packages) and writes
     # ~/.config/waybar/{config,style.css}, which is all that is needed.
-    programs.waybar = {
-      enable = true;
-
-      settings.mainBar = {
-        layer = "top";
-        position = "top";
-        height = 34;
-        spacing = 4;
-
-        modules-left = [
-          "niri/workspaces"
-          "niri/window"
-        ];
-        modules-center = [ "clock" ];
-        modules-right = [
-          "custom/swaync"
-          "wireplumber"
-          "backlight"
-          "battery"
-          "tray"
-        ];
-
-        # Notification count, click to open the control centre. swaync-client
-        # --subscribe-waybar emits {text, alt, tooltip, class} JSON whenever the
-        # notification list changes, so this needs return-type = "json" and no
-        # interval.
-
-        "niri/workspaces" = {
-          format = "{index}";
+    programs.waybar =
+      let
+        # Glyphs are Nerd Font codepoints, taken from nerdfonts.symbols-only
+        # (modules/nixos/fonts.nix). Written as Nix escapes so the source file
+        # stays ASCII and does not depend on how an editor saves it.
+        #
+        # Verified present with `fc-match ":charset=<hex>" family` -> Symbols
+        # Nerd Font for every one of these. f6ff, the glyph most people expect
+        # for ethernet, is NOT in the Nerd Font set (it resolves to Noto Sans),
+        # which is why ethernet uses f0e8 instead.
+        icons = {
+          wifi = ""; # wifi
+          ethernet = ""; # sitemap-looking cable glyph
+          netOff = "󰖪"; # wifi-off
+          bt = ""; # bluetooth
+          btConnected = "󰂯"; # bluetooth-connected
+          volHigh = ""; # volume-high
+          volMed = "";
+          volLow = "";
+          volMuted = ""; # volume-mute
+          sun = ""; # white-balance-sunny
+          moon = ""; # weather-night (dark room / low brightness)
+          bat = "󰁺"; # battery-10 (lowest in the gradient)
+          charging = "󰂄"; # battery-charging
         };
-        "niri/window" = {
-          max-length = 60;
-          separate-outputs = true;
-        };
+      in
+      {
+        enable = true;
 
-        clock = {
-          format = "{:%a %d %b  %H:%M}";
-          tooltip-format = "{calendar}";
-        };
+        settings.mainBar =
+          let
+            # Module order on the right: things you glance at, then things you
+            # click. `tray` stays last so newly-appeared applets do not shove
+            # the clock around on the left.
+            right = [
+              "mpris"
+              "tray"
+              "custom/notifications"
+              "bluetooth"
+              "network"
+              "wireplumber"
+              "backlight"
+              "battery"
+              "custom/power"
+            ];
+          in
+          {
+            layer = "top";
+            position = "top";
+            # 34 was tall enough that the bar read as a second window. 30 with
+            # vertical padding in the CSS is the same legible height with the
+            # text vertically centred instead of hugging the top.
+            height = 30;
+            spacing = 0;
+            margin-top = 6;
+            margin-left = 8;
+            margin-right = 8;
 
-        wireplumber = {
-          format = "{volume}%";
-          format-muted = "muted";
-          on-click = "${pkgs.pavucontrol}/bin/pavucontrol";
-        };
+            modules-left = [
+              "niri/workspaces"
+              "niri/window"
+            ];
+            modules-center = [ "clock" ];
+            modules-right = right;
 
-        # Dell Latitude 5410 exposes intel_backlight; waybar finds it by class.
-        backlight.format = "{percent}%";
+            # -- Left -----------------------------------------------------
+            #
+            # `format-icons` is what turns the workspace module from a row of
+            # numbers into distinct shapes. The keys are the states the module
+            # sets as classes (workspace.cpp:79-95 -> focused/active/urgent/
+            # empty), not arbitrary names.
+            #
+            # All four are drawn from the same codepoint family: nf-md-circle_*
+            # gives filled/hollow variants at the same optical size, which a
+            # plain number cannot.
+            "niri/workspaces" = {
+              format = "{icon}";
+              format-icons = {
+                focused = ""; # circle, filled
+                active = ""; # circle-o, hollow
+                urgent = ""; # exclamation-triangle
+                empty = ""; # same hollow dot, dimmed in CSS
+                default = "";
+              };
+            };
 
-        battery = {
-          format = "{capacity}%";
-          states = {
-            warning = 30;
-            critical = 15;
+            # {title} only, not app_id: the title is what identifies the window
+            # when three terminals are open. max-length applies to the whole
+            # format string, so 60 characters is the whole left label budget.
+            "niri/window" = {
+              format = "{title}";
+              max-length = 60;
+              separate-outputs = true;
+            };
+
+            # -- Centre ---------------------------------------------------
+            clock = {
+              format = "{:%a %d %b  %H:%M}";
+              format-alt = "{:%H:%M:%S}";
+              tooltip-format = "{calendar}";
+            };
+
+            # -- Right ----------------------------------------------------
+            #
+            # MPRIS is hidden entirely when no player is running (mpris.cpp:838
+            # sets the box invisible when getInfo() returns nullopt), so it costs
+            # nothing when nothing is playing.
+            mpris = {
+              format = "{status_icon} {artist} - {title}";
+              format-paused = "{status_icon} {artist} - {title}";
+              max-length = 40;
+              # playerctld picks whichever player is currently active; a
+              # hardcoded name would miss a second player.
+              player = "playerctld";
+              tooltip-format = "{player} ({status})\n{artist} - {title}\n{album}";
+              on-click = "playerctl play-pause";
+              on-click-right = "playerctl next";
+              # ff / fe / . are not in the nf-md set, so bikeshed-free
+              # play/pause markers are the nf-md ones.
+              status-icons = {
+                playing = ""; # play
+                paused = ""; # pause
+                stopped = ""; # stop
+              };
+            };
+
+            # Notification count. `{icon}` is the bell and the count is drawn
+            # only when non-zero -- format-empty is what the module falls back
+            # to when swaync reports a zero count, so an empty inbox shows a
+            # plain bell instead of "0".
+            "custom/notifications" = {
+              exec = "${pkgs.swaynotificationcenter}/bin/swaync-client -swb";
+              return-type = "json";
+              format = "{icon} {text}";
+              format-icons = {
+                notification = ""; # bell
+                none = ""; # bell-slash-o
+                dnd-notification = ""; # bell-slash
+                dnd-none = "";
+                inhibited-notification = "";
+                inhibited-none = "";
+              };
+              tooltip-format = "{tooltip}";
+              on-click = "${pkgs.swaynotificationcenter}/bin/swaync-client -t -sw";
+              on-click-right = "${pkgs.swaynotificationcenter}/bin/swaync-client -d -sw";
+              # Scrolling steps through the list of open notifications.
+              on-scroll-up = "${pkgs.swaynotificationcenter}/bin/swaync-client -O";
+              on-scroll-down = "${pkgs.swaynotificationcenter}/bin/swaync-client -C";
+            };
+
+            # Bluetooth. The state strings come from bluetooth.cpp:250-260:
+            # on/off/connected/no-controller, plus disabled when rfkill is on.
+            # `off` (powered down) and `disabled` (rfkill) are greyed out in the
+            # CSS; a radio that is simply on shows the plain glyph.
+            bluetooth = {
+              format = "{icon}";
+              format-connected = "{icon}";
+              format-off = "{icon}";
+              format-disabled = "{icon}";
+              format-no-controller = "";
+              format-icons = {
+                on = icons.bt;
+                connected = icons.btConnected;
+                off = icons.bt;
+                disabled = icons.bt;
+              };
+              tooltip-format = "{controller_alias}\t{num_connections} connected";
+              tooltip-format-connected = "{controller_alias}\t{num_connections} connected\n\n{device_enumerate}";
+              tooltip-format-enumerate-connected = "{device_alias}\t{device_address}";
+              tooltip-format-enumerate-connected-battery = "{device_alias}\t{device_address}\t{device_battery_percentage}%";
+              on-click = "blueman-manager";
+            };
+
+            # Network. One module, both interfaces: the format switches on the
+            # state the kernel reports (network.cpp:341-360), and `{icon}`
+            # resolves from format-icons by that same state. Wireless first
+            # because this laptop is normally on wifi; the wired glyph only
+            # appears when the cable is actually in.
+            network = {
+              format-wifi = "{icon}";
+              format-ethernet = "{icon}";
+              format-linked = "{icon}"; # carrier, no address yet
+              format-disconnected = "{icon}";
+              format-disabled = "{icon}"; # rfkill off
+              format-icons = {
+                inherit (icons) wifi ethernet;
+                linked = icons.ethernet;
+                disconnected = icons.netOff;
+                disabled = icons.netOff;
+              };
+              tooltip-format = "{essid}\n{ipaddr}/{cidr}";
+              tooltip-format-wifi = "{essid} ({signalStrength}%)\n{ipaddr}/{cidr}\n{ifname}";
+              tooltip-format-ethernet = "{ifname}\n{ipaddr}/{cidr}";
+              tooltip-format-disconnected = "Disconnected";
+              on-click = "nm-connection-editor";
+            };
+
+            # Volume. Three glyphs for the level plus one for muted, all on the
+            # same codepoint family so the bar does not jitter as the volume
+            # changes width. default-muted is the key wireplumber.cpp:663-687
+            # appends when the sink is muted, which is why muting works without
+            # a separate format-muted.
+            wireplumber = {
+              format = "{icon} {volume}%";
+              format-muted = "{icon} muted";
+              format-icons = {
+                default = [
+                  icons.volLow
+                  icons.volMed
+                  icons.volHigh
+                ];
+                "default-muted" = icons.volMuted;
+                headphone = icons.volHigh;
+                headset = icons.volHigh;
+                speaker = icons.volHigh;
+              };
+              tooltip-format = "{node_name}  {volume}%";
+              # Scroll = 5 points, matching swayosd-client's step, so keyboard
+              # keys and mouse wheel move the same amount.
+              scroll-step = 5;
+              max-volume = 100;
+              on-click = "${pkgs.pavucontrol}/bin/pavucontrol";
+            };
+
+            # Brightness. Two icons rather than a gradient: this panel reports
+            # percent in steps that would make a five-icon gradient flicker.
+            # 50 is the crossover.
+            backlight = {
+              format = "{icon} {percent}%";
+              format-icons = [
+                icons.moon
+                icons.sun
+              ];
+              tooltip = false;
+              # Scrolling the bar is the fastest way to change brightness
+              # without leaving the keyboard home row.
+              on-scroll-up = "${pkgs.brightnessctl}/bin/brightnessctl -q set 5%+";
+              on-scroll-down = "${pkgs.brightnessctl}/bin/brightnessctl -q set 5%-";
+            };
+
+            battery = {
+              format = "{icon} {capacity}%";
+              format-charging = "{icon} {capacity}%";
+              states = {
+                warning = 30;
+                critical = 15;
+              };
+              # The threshold-object form lets each capacity band get its own
+              # glyph and is the only way to draw a battery that empties as it
+              # discharges. `max` is inclusive, so the bands do not overlap.
+              format-icons = {
+                default = [
+                  {
+                    icon = "󰁺";
+                    max = 10;
+                  }
+                  {
+                    icon = "󰁻";
+                    max = 20;
+                  }
+                  {
+                    icon = "󰁼";
+                    max = 30;
+                  }
+                  {
+                    icon = "󰁽";
+                    max = 40;
+                  }
+                  {
+                    icon = "󰁾";
+                    max = 50;
+                  }
+                  {
+                    icon = "󰁿";
+                    max = 60;
+                  }
+                  {
+                    icon = "󰂀";
+                    max = 70;
+                  }
+                  {
+                    icon = "󰂁";
+                    max = 80;
+                  }
+                  {
+                    icon = "󰂂";
+                    max = 90;
+                  }
+                  {
+                    icon = "󰁹";
+                    max = 100;
+                  }
+                ];
+                charging = [
+                  {
+                    icon = icons.charging;
+                    max = 100;
+                  }
+                ];
+              };
+              tooltip-format = "{time}\n{power:.1f} W";
+            };
+
+            # Power menu, the same wlogout that Mod+Shift+E opens. A bar button
+            # is the discoverable version of that bind.
+            "custom/power" = {
+              format = "󰄕"; # power
+              tooltip = true;
+              tooltip-format = "Power menu";
+              on-click = "wlogout";
+            };
+
+            # The tray only hosts things that have NO dedicated module here.
+            # nm-applet and blueman both register a status icon, and both are
+            # already drawn as first-class modules a few slots to the left, so
+            # without the ignore list the bar shows wifi and bluetooth twice.
+            # The match is a substring test against bus_name/category/icon_name/
+            # id/title (host.cpp:80-85), so the icon names are enough.
+            tray = {
+              icon-size = 16;
+              spacing = 6;
+              ignore-list = [
+                "nm-applet"
+                "nm-signal"
+                "blueman"
+              ];
+            };
           };
-        };
 
-        tray = {
-          icon-size = 18;
-          spacing = 8;
-        };
+        style = ''
+          * {
+            font-family: "Noto Sans", sans-serif;
+            font-size: 12px;
+            border: none;
+            border-radius: 0;
+            min-height: 0;
+          }
 
-        "custom/swaync" = {
-          exec = "${pkgs.swaynotificationcenter}/bin/swaync-client -swb";
-          return-type = "json";
-          tooltip = true;
-          on-click = "${pkgs.swaynotificationcenter}/bin/swaync-client -t -sw";
-          on-click-right = "${pkgs.swaynotificationcenter}/bin/swaync-client -d -sw";
-        };
+          /* A floating bar, not a full-width strip: 6px of margin at the top
+             and 8px at the sides, with rounded corners, so it reads as a panel
+             over the wallpaper instead of a second title bar. The margins come
+             from settings above, not from CSS -- waybar positions the window
+             itself. */
+          window#waybar {
+            background: rgba(24, 24, 37, 0.94);
+            color: #cdd6f4;
+            border-radius: 10px;
+            padding: 0 4px;
+          }
+
+          /* -- Left ------------------------------------------------------ */
+
+          #workspaces {
+            padding: 0 4px;
+          }
+
+          #workspaces button {
+            padding: 0 6px;
+            margin: 4px 2px;
+            border-radius: 6px;
+            color: #6c7086;
+            transition: all 0.2s ease;
+          }
+
+          /* An empty workspace is a faint dot; the focused one is the only
+             thing in the bar that is pure white. */
+          #workspaces button.empty {
+            color: rgba(108, 112, 134, 0.45);
+          }
+
+          #workspaces button.active {
+            color: #a6adc8;
+          }
+
+          #workspaces button.focused {
+            color: #cdd6f4;
+            background: rgba(49, 50, 68, 0.9);
+          }
+
+          #workspaces button.urgent {
+            color: #f38ba8;
+          }
+
+          #workspaces button:hover {
+            background: rgba(69, 71, 90, 0.8);
+            color: #cdd6f4;
+          }
+
+          #window {
+            color: #a6adc8;
+            padding: 0 10px;
+            font-style: italic;
+          }
+
+          /* -- Centre ---------------------------------------------------- */
+
+          #clock {
+            color: #cdd6f4;
+            font-weight: 600;
+            padding: 0 12px;
+          }
+
+          /* -- Right ----------------------------------------------------- */
+
+          /* Every right-hand module gets the same padding so the icons line up
+             in a column rather than drifting apart as their text changes
+             width. font-family falls back to the Nerd Font for the glyphs and
+             Noto Sans for any text beside them. */
+          #mpris,
+          #bluetooth,
+          #network,
+          #wireplumber,
+          #backlight,
+          #battery,
+          #custom-notifications,
+          #custom-power,
+          #tray {
+            padding: 0 7px;
+          }
+
+          #mpris {
+            color: #89b4fa;
+            font-style: italic;
+          }
+
+          #custom-notifications {
+            color: #a6adc8;
+          }
+
+          /* DND and a held-back notification list are the two states worth
+             shouting about, because in both cases the app thinks it told you
+             something and it did not. */
+          #custom-notifications.dnd-notification,
+          #custom-notifications.dnd-none {
+            color: #f38ba8;
+          }
+
+          #custom-notifications.notification {
+            color: #89b4fa;
+          }
+
+          #bluetooth {
+            color: #89b4fa;
+          }
+
+          /* Powered down or rfkill-blocked: present, but not usable. */
+          #bluetooth.off,
+          #bluetooth.disabled {
+            color: #6c7086;
+          }
+
+          #network {
+            color: #a6adc8;
+          }
+
+          #network.disconnected,
+          #network.disabled {
+            color: #6c7086;
+          }
+
+          #wireplumber {
+            color: #a6adc8;
+          }
+
+          #wireplumber.muted {
+            color: #6c7086;
+          }
+
+          #backlight {
+            color: #a6adc8;
+          }
+
+          #battery {
+            color: #a6adc8;
+          }
+
+          #battery.charging {
+            color: #a6e3a1;
+          }
+
+          #battery.warning:not(.charging) {
+            color: #f9e2af;
+          }
+
+          #battery.critical:not(.charging) {
+            color: #f38ba8;
+            animation: blink 1s linear infinite;
+          }
+
+          @keyframes blink {
+            to {
+              color: rgba(243, 139, 168, 0.4);
+            }
+          }
+
+          #custom-power {
+            color: #f38ba8;
+            font-size: 14px;
+          }
+
+          #custom-power:hover {
+            color: #f9e2af;
+          }
+
+          #tray {
+            padding: 0 4px;
+          }
+
+          #tray > .passive {
+            -gtk-icon-effect: dim;
+          }
+
+          #tray > .needs-attention {
+            -gtk-icon-effect: highlight;
+          }
+
+          tooltip {
+            background: rgba(24, 24, 37, 0.98);
+            border: 1px solid rgba(137, 180, 250, 0.4);
+            border-radius: 8px;
+            color: #cdd6f4;
+          }
+        '';
       };
-
-      style = ''
-        * {
-          font-family: "Noto Sans", sans-serif;
-          font-size: 13px;
-          border: none;
-          border-radius: 0;
-          min-height: 0;
-        }
-
-        window#waybar {
-          background: rgba(30, 30, 46, 0.92);
-          color: #cdd6f4;
-        }
-
-        #workspaces button {
-          padding: 0 8px;
-          color: #6c7086;
-        }
-
-        #workspaces button.active {
-          color: #cdd6f4;
-          box-shadow: inset 0 -2px #89b4fa;
-        }
-
-        #window { color: #a6adc8; }
-
-        #clock, #wireplumber, #backlight, #battery, #tray { padding: 0 10px; }
-
-        #custom-swaync { padding: 0 10px; color: #a6adc8; }
-        #custom-swaync.dnd { color: #f38ba8; }
-        #custom-swaync.unread { color: #89b4fa; }
-
-        #battery.warning { color: #f9e2af; }
-        #battery.critical { color: #f38ba8; }
-      '';
-    };
 
     # ── Launcher ──────────────────────────────────────────────────────────
     # fuzzel was running on its built-in defaults, which are Solarized light —
