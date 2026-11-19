@@ -300,7 +300,14 @@ in
               # keys and mouse wheel move the same amount.
               scroll-step = 5;
               max-volume = 100;
-              on-click = "${pkgs.pavucontrol}/bin/pavucontrol";
+              # Left click draws the OSD pill instead of opening a window: it is
+              # the same layer-shell surface the media keys already use, so it
+              # is themed and positioned for free. `+0` is the trick -- it shows
+              # the current level and changes nothing (unlike `raise`, which
+              # moves it a step). pavucontrol, which is a whole window, stays on
+              # right click for the per-application mixer.
+              on-click = "${pkgs.swayosd}/bin/swayosd-client --output-volume +0";
+              on-click-right = "${pkgs.pavucontrol}/bin/pavucontrol";
             };
 
             # Brightness. Two icons rather than a gradient: this panel reports
@@ -313,6 +320,9 @@ in
                 icons.sun
               ];
               tooltip = false;
+              # Same as the volume pill: `+0` renders the current level without
+              # moving the backlight.
+              on-click = "${pkgs.swayosd}/bin/swayosd-client --brightness +0";
               # Scrolling the bar is the fastest way to change brightness
               # without leaving the keyboard home row.
               on-scroll-up = "${pkgs.brightnessctl}/bin/brightnessctl -q set 5%+";
