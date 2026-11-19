@@ -47,6 +47,7 @@ so a host is buildable the moment that file exists. A directory **without**
 | `autocpufreq.nix` | `modules.autocpufreq` | `enable` |
 | `backup.nix` | `modules.backup` | `paths`, `exclude`, `repository`, `passwordFile`, `sshKeyFile`, `knownHost`, `timerConfig`, `pruneOpts`, `initialize` |
 | `boot.nix` | `modules.boot` | `systemdBoot`, `efi` |
+| `bluetooth.nix` | `modules.bluetooth` | `enable` |
 | `dns.nix` | `modules.dns` | `records`, `push.{enable,zone,ignore,variables}` |
 | `fail2ban.nix` | `modules.fail2ban` | `enable` |
 | `firewall.nix` | `modules.firewall` | `openPorts` |
