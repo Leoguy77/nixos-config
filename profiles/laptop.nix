@@ -37,6 +37,27 @@
 
   modules.autocpufreq.enable = true;
 
+  # UPower, for the battery. noctalia's battery widget and the power page of its
+  # control center read org.freedesktop.UPower and nothing else -- no
+  # /sys/class/power_supply fallback -- so with the daemon off the widget is
+  # empty and the power page blank, on a machine whose BAT0 is fine. waybar read
+  # /sys directly and needed no daemon; a D-Bus bar does.
+  #
+  # It is also the only thing that acts on a low battery. logind does not watch
+  # charge at runtime (battery_is_discharging_and_low in systemd's battery-util
+  # is used by systemd-battery-check at early boot, not by logind), so with no
+  # upower nothing was watching, and the boot that "turned off hard" ends mid-
+  # activity with no shutdown, no suspend and no hibernate in it.
+  #
+  # PowerOff rather than the default HybridSleep: hibernate has never once
+  # written an image on this machine, and HybridSleep suspends afterwards, which
+  # is the worst of both -- asleep at 0%. PowerOff always works. Swap it to
+  # "Hibernate" the day `systemctl hibernate` is shown to resume here.
+  services.upower = {
+    enable = true;
+    criticalPowerAction = "PowerOff";
+  };
+
   # Force real S3 (deep) suspend instead of s2idle (Modern Standby)
   boot.kernelParams = [ "mem_sleep_default=deep" ];
 }
