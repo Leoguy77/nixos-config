@@ -1,4 +1,4 @@
-# Bluetooth support (bluez daemon + the blueman tray applet).
+# Bluetooth support (bluez daemon).
 #
 # Single purpose: make Bluetooth radios usable. Distinct from networkmanager.nix
 # — a machine can have WiFi and no Bluetooth, or Bluetooth and no WiFi.
@@ -7,6 +7,12 @@
 # devices on its own (nixos/modules/services/desktops/pipewire/wireplumber.nix
 # asserts hsphfpd is off and ships its own 10-bluez.conf), so an A2DP headset
 # works from this alone.
+#
+# There is deliberately NO tray applet. blueman used to be installed here for
+# its applet; noctalia's bar has a bluetooth widget that opens a control-center
+# section driving the same bluez API, and its binary registers
+# org.bluez.Agent1 + AgentManager1 itself (verified by pairing and forgetting a
+# device through it). blueman's applet would be a second icon for one radio.
 {
   config,
   lib,
@@ -15,7 +21,7 @@
 
 {
   options.modules.bluetooth = {
-    enable = lib.mkEnableOption "Bluetooth (bluez + blueman tray applet)";
+    enable = lib.mkEnableOption "Bluetooth (bluez daemon)";
   };
 
   config = lib.mkIf config.modules.bluetooth.enable {
@@ -28,11 +34,5 @@
       # `bluetoothctl` session has to flip it by hand after every reboot.
       powerOnBoot = true;
     };
-
-    # The tray applet. `services.blueman` installs the package and its dbus
-    # activation files; the applet itself is started per user by
-    # services.blueman-applet in modules/home/gui/niri.nix, because daemons
-    # belong to the system and session programs belong to the session.
-    services.blueman.enable = true;
   };
 }

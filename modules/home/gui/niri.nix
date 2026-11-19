@@ -168,17 +168,16 @@ in
     # a module that declares the right systemd user unit.
     services.polkit-gnome.enable = true;
 
-    # ── Bluetooth applet ──────────────────────────────────────────────────
-    # `services.blueman` (from modules/nixos/bluetooth.nix) only installs the
-    # package and its dbus activation files — blueman ships an XDG autostart
-    # .desktop and NOTHING reads it here: niri has no xdg-autostart support
-    # (grep -i autostart src/main.rs turns up one comment about the env var and
-    # no loader), so the applet would never start. This declares the systemd
-    # user unit instead, which the bar's tray module then hosts.
+    # ── Bluetooth ─────────────────────────────────────────────────────────
+    # No applet. Noctalia's bar has a `bluetooth` widget that opens the
+    # control-center's bluetooth section, and that panel is a real replacement:
+    # it drives the same bluez API the applet did. Verified on this machine by
+    # pairing, trusting and forgetting a device through it, and its binary
+    # registers org.bluez.Agent1 plus org.bluez.AgentManager1 itself for the
+    # pairing prompts (RequestPasskey / RequestConfirmation / DisplayPasskey).
     #
-    # Requires=tray.target is in the unit's own definition, so it waits for a
-    # status notifier host rather than silently failing to draw.
-    services.blueman-applet.enable = true;
+    # The old `services.blueman-applet` put a second bluetooth icon in the
+    # tray, so the bar showed the radio twice.
 
     # ── Default applications ──────────────────────────────────────────────
     # Nothing set a default file manager, so the winner was whatever package
