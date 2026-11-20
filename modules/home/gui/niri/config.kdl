@@ -97,7 +97,7 @@ window-rule {
 
 // niri has no idle daemon of its own; swayidle does the lock-then-blank ladder.
 //
-// TWO swayidle processes, and the timeout ladder deliberately has no `-w`.
+// ONE swayidle process, and not a single `-w` in it.
 // `-w` makes swayidle waitpid() the command it ran (main.c:173), which blocks
 // its whole event loop -- so a later timeout cannot fire until the earlier
 // command exits. With one `-w` ladder that produced two real bugs:
@@ -112,9 +112,19 @@ window-rule {
 // command ran at t=7s -- the same second the 6s command exited -- instead of at
 // t=3s.
 //
-// Only `before-sleep` genuinely wants `-w`, because there the blocking is the
-// point: logind suspends as soon as swayidle drops its delay inhibitor, so
-// hyprlock has to be on screen before that happens. Hence the second process.
+// `before-sleep` gets no `-w` either. That is where the flag is most tempting --
+// logind suspends as soon as swayidle drops its delay inhibitor, so in theory
+// hyprlock should be up first -- but -w blocks on a process that never exits, so
+// the inhibitor is never dropped and logind waits out its full
+// InhibitDelayMaxSec (5s, logind-core.c:44) before suspending anyway. Measured
+// on 2026-11-20: lid closed 08:40:51, reopened 08:40:54, and suspend still
+// executed at 08:40:57 with the lid already open -- the display came back and
+// then went black under the user, who reported the machine powering off.
+// Without -w swayidle forks hyprlock and releases the inhibitor at once, so a
+// lid close takes effect immediately and reopening it is an ordinary wake
+// instead of one swallowed by a pending suspend. hyprlock asks for the lock
+// while starting up, before it paints, so only a few milliseconds of exec can
+// be lost -- never the lock.
 //
 // One KDL string = one argv entry: spawn-at-startup execs directly, with no
 // shell. swayidle matches argv[i] against the literal words `timeout` and
@@ -132,12 +142,14 @@ window-rule {
 // wlr-screencopy, which niri also serves (src/handlers/mod.rs:22,86,95,637).
 // Unlock was proven in a nested niri session before this line was changed --
 // a locker that cannot be unlocked strands the machine with no way back in.
+//
+// One process, not two: a second swayidle for `before-sleep` shared nothing with
+// the first and only existed to carry `-w`, which is now gone. swayidle takes all
+// its commands in one argv (main.c:864-892 reads them left to right).
 spawn-at-startup "swayidle" \
   "timeout" "300" "hyprlock" \
-  "timeout" "600" "niri msg action power-off-monitors"
-
-// The suspend hook, on its own so `-w` cannot stall the ladder above.
-spawn-at-startup "swayidle" "-w" "before-sleep" "hyprlock"
+  "timeout" "600" "niri msg action power-off-monitors" \
+  "before-sleep" "hyprlock"
 
 // Noctalia, for the top bar. It REPLACES waybar, which is no longer installed.
 // The roles it does not take -- notifications, OSD, clipboard, wallpaper,

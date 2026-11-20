@@ -117,6 +117,13 @@
   # reached through suspend-then-hibernate arrives as "suspend-then-hibernate".
   # Matching only "hibernate" would look correct and never once fire for a lid
   # close, which is now the usual way this machine hibernates.
+  #
+  # Absolute paths for everything external: writeShellScript sets the shebang but
+  # NOT PATH (unlike writeShellScriptBin, which wraps with --prefix PATH), and
+  # systemd execs this with the manager's environment. A bare `sleep 1` failed
+  # with "line 10: sleep: command not found" on the first real hibernation
+  # (2026-11-20 08:41:06). `echo` and the redirects are bash builtins, so only
+  # sleep needs qualifying.
   environment.etc."systemd/system-sleep/touchpad-hibernate".source =
     pkgs.writeShellScript "touchpad-hibernate" ''
       # Only hibernation leaves the bus wedged; leave suspend alone.
@@ -127,7 +134,7 @@
       [ "$1" = "post" ] || exit 0
 
       # Wait for the restored system to settle before poking the controller.
-      sleep 1
+      ${pkgs.coreutils}/bin/sleep 1
       echo 1 > /sys/bus/pci/devices/0000:00:15.1/remove
       echo 1 > /sys/bus/pci/rescan
     '';
