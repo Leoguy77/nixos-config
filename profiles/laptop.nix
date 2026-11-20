@@ -89,6 +89,24 @@
   services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
   systemd.sleep.settings.Sleep.HibernateDelaySec = "2h";
 
+  # The i2c-HID touchpad is armed as a wake source by default and fires in S3
+  # with nothing touching it. That silently defeats suspend-then-hibernate:
+  # the spurious wake is not the RTC alarm, so systemd takes the
+  # `if (!woken_by_timer) return 0;` branch in custom_timer_suspend
+  # (sleep.c:501) and treats it as a manual wakeup -- no re-suspend, no
+  # hibernate, just a laptop sitting awake until the battery runs out.
+  #
+  # Measured on this machine, twice, with an RTC alarm armed for 60s:
+  #   wakeup enabled  -> resumed after 10s, pm_wakeup_irq 51 (DELL09A0:00)
+  #   wakeup disabled -> slept the full 64s, pm_wakeup_irq empty (RTC)
+  #
+  # `power/wakeup` only governs system-sleep wakeup, so the touchpad behaves
+  # normally while the machine is awake; tap-to-wake is the one thing lost, and
+  # the lid or any key still wakes it.
+  services.udev.extraRules = ''
+    SUBSYSTEM=="i2c", DRIVER=="i2c_hid_acpi", ATTR{power/wakeup}="disabled"
+  '';
+
   # Revive the touchpad after resuming from hibernation. It comes back dead:
   # the controller (i2c_designware on LPSS 0000:00:15.1, touchpad chip at 0x2c)
   # logs "controller timed out", "timeout in disabling adapter" and then
