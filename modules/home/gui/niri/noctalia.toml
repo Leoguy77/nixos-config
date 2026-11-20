@@ -89,3 +89,41 @@ enabled = false
 # authenticate is a soft lockout, and noctalia's PAM service is not declared.
 [lockscreen]
 enabled = false
+
+# The power menu. noctalia's own action set is lock, suspend, lock-and-suspend,
+# logout, reboot, reboot-uefi and shutdown -- there is no hibernate in it. The
+# escape hatch is action = "command", running an arbitrary command. `custom` is
+# the name the settings UI and the i18n catalogs use, but the panel does not
+# know it: it logs `skipping unknown action "custom"` and draws nothing.
+# `noctalia config validate` accepts both, so only the panel's own log tells
+# them apart. Writing the list at all replaces the default one.
+#
+# `lock` and `lock_and_suspend` are left out on purpose: both drive noctalia's
+# own lockscreen, which is disabled above, so they would draw a button that
+# cannot lock anything. hyprlock is on Mod+L, and lock-before-suspend is
+# already handled by `swayidle -w before-sleep hyprlock` in config.kdl.
+[shell.session]
+grid = false
+show_shortcuts = true
+
+[[shell.session.actions]]
+action = "logout"
+variant = "default"
+
+[[shell.session.actions]]
+action = "suspend"
+variant = "default"
+
+[[shell.session.actions]]
+action = "command"
+command = "systemctl hibernate"
+label = "Hibernate"
+variant = "default"
+
+[[shell.session.actions]]
+action = "reboot"
+variant = "default"
+
+[[shell.session.actions]]
+action = "shutdown"
+variant = "destructive"
