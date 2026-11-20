@@ -73,6 +73,22 @@
   # runs to "Allocated 6208020 kbytes" where before it never started at all.
   systemd.sleep.settings.Sleep.HibernateMode = "shutdown";
 
+  # Closing the lid sleeps like suspend, but only for a while: after the delay
+  # systemd writes the hibernation image and powers off. The point is the worn
+  # pack (57% of design capacity), where a plain S3 suspend keeps drawing power
+  # and a low laptop in a bag reaches 0% and loses the session. upower's
+  # CriticalPowerAction covers the emergency case; this covers the ordinary one.
+  #
+  # HandleLidSwitch only. The docked and external-power variants are left at
+  # their defaults (ignore and suspend): a lid closed on shore power has no
+  # battery to run out, so plain suspend is correct and faster to resume from.
+  #
+  # 2 hours is the same figure systemd uses when a machine reports no battery,
+  # and it is comfortably under this pack's runtime -- roughly 3.5%/hour of
+  # suspend drain on 28.9 Wh means even a 20% battery lasts ~6 hours asleep.
+  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
+  systemd.sleep.settings.Sleep.HibernateDelaySec = "2h";
+
   # Revive the touchpad after resuming from hibernation. It comes back dead:
   # the controller (i2c_designware on LPSS 0000:00:15.1, touchpad chip at 0x2c)
   # logs "controller timed out", "timeout in disabling adapter" and then
@@ -95,10 +111,19 @@
   # Hooked through system-sleep, systemd's own pre/post callout around
   # write_state, and not powerManagement.resumeCommands, which fires on any
   # resume and would churn the controller after every suspend. Hibernation only.
+  #
+  # $2 is the MAIN operation, not the step systemd is currently running
+  # (sleep.c:249 passes main_operation to the hook on purpose), so hibernation
+  # reached through suspend-then-hibernate arrives as "suspend-then-hibernate".
+  # Matching only "hibernate" would look correct and never once fire for a lid
+  # close, which is now the usual way this machine hibernates.
   environment.etc."systemd/system-sleep/touchpad-hibernate".source =
     pkgs.writeShellScript "touchpad-hibernate" ''
       # Only hibernation leaves the bus wedged; leave suspend alone.
-      [ "$2" = "hibernate" ] || exit 0
+      case "$2" in
+        hibernate | suspend-then-hibernate) ;;
+        *) exit 0 ;;
+      esac
       [ "$1" = "post" ] || exit 0
 
       # Wait for the restored system to settle before poking the controller.
