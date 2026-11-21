@@ -71,13 +71,31 @@
   # step backwards.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  # Lid close = plain S3 suspend, NOT suspend-then-hibernate.
+  # Lid close: suspend-then-hibernate on battery, stay awake on external power.
   #
-  # Suspend is deliberately boring here because the battery is worn to ~57% of
-  # design capacity; hibernating on every lid close would spend 5 GB of swap I/O
-  # each time to guard against a risk upower's CriticalPowerAction already
-  # covers at 5%. Hibernate stays available on demand from the session menu.
-  services.logind.settings.Login.HandleLidSwitch = "suspend";
+  # On battery, S3 keeps drawing power and this pack is worn to ~57% of design
+  # capacity, so "suspend forever" means the session is lost when the battery
+  # runs out. After HibernateDelaySec the kernel writes the image to swap and
+  # powers down, so a drained pack costs nothing but a resume. Safe because
+  # hibernation actually works on 7.3.4 (see the kernel note above), and the
+  # touchpad wake prune below is what makes the delay reachable at all.
+  #
+  # On external power, do nothing. The machine stays at S0 and keeps working with
+  # the lid shut -- it is plugged in, there is nothing to conserve. This must be
+  # set EXPLICITLY: logind picks the action in logind-button.c:150 and falls back
+  # to HandleLidSwitch only when HandleLidSwitchExternalPower is an invalid
+  # action. nixpkgs leaves it unset, so it reads back from D-Bus as the empty
+  # string, and the value that looked like "no policy" is what quietly turned a
+  # plugged-in lid close into a suspend.
+  #
+  # HandleLidSwitchDocked is already `ignore` by default (logind-core.c:62) and
+  # is checked first (logind-button.c:148), so a docked lid is fine as-is.
+  #
+  # 2h: roughly 3.5%/hour of S3 drain on 28.9 Wh, so even a 20% battery lasts
+  # ~6h asleep while staying well inside the delay.
+  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
+  services.logind.settings.Login.HandleLidSwitchExternalPower = "ignore";
+  systemd.sleep.settings.Sleep.HibernateDelaySec = "2h";
 
   # The power button must do NOTHING at the OS level.
   #
