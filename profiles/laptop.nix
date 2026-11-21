@@ -49,10 +49,10 @@
   # upower nothing was watching, and the boot that "turned off hard" ends mid-
   # activity with no shutdown, no suspend and no hibernate in it.
   #
-  # PowerOff rather than the default HybridSleep: hibernate has never once
-  # written an image on this machine, and HybridSleep suspends afterwards, which
-  # is the worst of both -- asleep at 0%. PowerOff always works. Swap it to
-  # "Hibernate" the day `systemctl hibernate` is shown to resume here.
+  # PowerOff rather than the default HybridSleep. HybridSleep writes an image
+  # and then suspends, so a machine that dies at 0% wakes to a dead battery and
+  # has to re-read the image it just wrote. PowerOff always works and is what a
+  # flat battery needs. Hibernate itself does work here now (see below).
   services.upower = {
     enable = true;
     criticalPowerAction = "PowerOff";
@@ -61,33 +61,50 @@
   # Force real S3 (deep) suspend instead of s2idle (Modern Standby)
   boot.kernelParams = [ "mem_sleep_default=deep" ];
 
-  # Hibernate with a kernel-written image, not the firmware's. /sys/power/disk
-  # offers [platform] shutdown reboot suspend test_resume and systemd takes the
-  # first entry that works, so the default is always `platform` -- ACPI S4, where
-  # the firmware is expected to save memory. It cannot: swap here is LUKS-
-  # encrypted, so nothing outside the kernel can write the image, and the
-  # matching EFI HibernateLocation variable is never created either (systemd
-  # skips it when resume= is on the cmdline). `shutdown` is the kernel writing
-  # the image to swap itself and then powering off, which is the only mode that
-  # can work on this disk layout. Proven with pm_test=core: hibernation entry now
-  # runs to "Allocated 6208020 kbytes" where before it never started at all.
-  systemd.sleep.settings.Sleep.HibernateMode = "shutdown";
+  # Hibernation NEEDS this kernel. On 6.18.63 every `systemctl hibernate`
+  # aborted inside copy_data_pages(): it logged "Creating image:" and "Need to
+  # copy N pages" and then unwound to "hibernation exit" with the machine still
+  # awake, no image on swap, and no "Preparing to enter system sleep state S4"
+  # anywhere in the journal -- over seven attempts across the platform, shutdown
+  # and reboot disk modes, with pm_test at [none] and the i2c touchpad pruned
+  # from the wake sources. 7.3.4 reaches S4 every time. Newer than 6.18, not a
+  # step backwards.
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  # Closing the lid sleeps like suspend, but only for a while: after the delay
-  # systemd writes the hibernation image and powers off. The point is the worn
-  # pack (57% of design capacity), where a plain S3 suspend keeps drawing power
-  # and a low laptop in a bag reaches 0% and loses the session. upower's
-  # CriticalPowerAction covers the emergency case; this covers the ordinary one.
+  # Lid close = plain S3 suspend, NOT suspend-then-hibernate.
   #
-  # HandleLidSwitch only. The docked and external-power variants are left at
-  # their defaults (ignore and suspend): a lid closed on shore power has no
-  # battery to run out, so plain suspend is correct and faster to resume from.
+  # Suspend is deliberately boring here because the battery is worn to ~57% of
+  # design capacity; hibernating on every lid close would spend 5 GB of swap I/O
+  # each time to guard against a risk upower's CriticalPowerAction already
+  # covers at 5%. Hibernate stays available on demand from the session menu.
+  services.logind.settings.Login.HandleLidSwitch = "suspend";
+
+  # The power button must do NOTHING at the OS level.
   #
-  # 2 hours is the same figure systemd uses when a machine reports no battery,
-  # and it is comfortably under this pack's runtime -- roughly 3.5%/hour of
-  # suspend drain on 28.9 Wh means even a 20% battery lasts ~6 hours asleep.
-  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
-  systemd.sleep.settings.Sleep.HibernateDelaySec = "2h";
+  # Both things that could handle it are wrong here.
+  #
+  # niri grabs the power key and maps it to Action::Suspend
+  # (src/input/mod.rs:4414), holding a `block` inhibitor on handle-power-key so
+  # logind never applies policy. The press that powers the machine back ON after
+  # a hibernate is still delivered to the kernel once the image is restored, so
+  # niri suspended again 1.2 s after every resume -- measured three times in a
+  # row at [268.63] [292.96] [316.00], 23 s apart. That is the "came back to the
+  # lock screen and nothing responds" hang. `disable-power-key-handling` in the
+  # niri config takes niri out of it.
+  #
+  # logind is not a safe fallback. HoldoffTimeoutSec does NOT cover this:
+  # logind-dbus.c:2032 only calls manager_set_lid_switch_ignore(), and the
+  # comment there says so ("Make sure the lid switch is ignored for a while").
+  # power_key_ignore_inhibited defaults to false (logind-core.c:64), so nothing
+  # suppresses HandlePowerKey on the resume press. `hibernate` would loop
+  # exactly as niri did, only writing ~5 GB to swap per cycle; `poweroff` would
+  # cut the machine dead on a stray press. `ignore` returns before any action is
+  # taken (logind-action.c:355-358).
+  #
+  # The button still powers the machine on and still wakes it from suspend or
+  # hibernate -- that is firmware and kernel, not logind. Hibernate and suspend
+  # stay on the session menu and on the lid.
+  services.logind.settings.Login.HandlePowerKey = "ignore";
 
   # The i2c-HID touchpad is armed as a wake source by default and fires in S3
   # with nothing touching it. That silently defeats suspend-then-hibernate:

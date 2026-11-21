@@ -24,6 +24,12 @@
 include "default-config.kdl"
 
 input {
+  // The power key goes to logind (HandlePowerKey = "hibernate"), not to niri.
+  // niri maps it to Action::Suspend (src/input/mod.rs:4414) and holds a block
+  // inhibitor on handle-power-key, so logind never applies policy -- the very
+  // press that powers the machine back on after a hibernate suspends it again.
+  disable-power-key-handling
+
   // xkb is deliberately NOT set. With an empty `xkb {}` block (as in the
   // included default) niri takes the layout from org.freedesktop.locale1, which
   // NixOS drives from services.xserver.xkb.layout (modules/nixos/locale.nix).
