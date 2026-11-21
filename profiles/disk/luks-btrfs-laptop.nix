@@ -15,11 +15,18 @@
 #
 # Why two containers and not LVM on one: hibernation is already covered, so LVM
 # would add a layer without removing a step. Both containers are unlocked by the
-# same FIDO2 token, so both cost a tap — user presence is a fresh HMAC per
-# `cryptsetup open`, and the kernel keyring does not carry it across containers
-# the way it carries a passphrase. Only a PIN would be cached (crypttab's
-# password-cache=yes, 2.5 minutes), and both containers enroll tap-only
-# (--fido2-with-client-pin=no), so there is no PIN to cache: boot is two taps.
+# same FIDO2 token, so both cost a PIN entry and a tap — user presence is a fresh
+# HMAC per `cryptsetup open`, and the kernel keyring does not carry it across
+# containers the way it carries a passphrase. Only a PIN would be cached
+# (crypttab's password-cache=yes, 2.5 minutes), so the second container is cheap
+# but not free: boot is one PIN and two taps.
+#
+# The PIN is not optional on this hardware. The Token2 reports UV ✗ with
+# alwaysUv ✓ — it has no fingerprint reader and no PIN pad, so the client PIN is
+# the only user verification it can offer, and systemd records
+# fido2-clientPin-required=true in the LUKS header. Passing
+# --fido2-with-client-pin=no does not override that (libfido2-util.c retries
+# with a PIN when the token demands it); verified from the header, not assumed.
 #
 # Token-only, no passphrase slot: a passphrase keyslot is a second way in, and
 # the point of the token is that booting requires the hardware. The recovery
@@ -93,7 +100,6 @@ in
                 crypttabExtraOpts = [ "fido2-device=auto" ];
               };
               enrollFido2 = true;
-              extraFido2EnrollArgs = [ "--fido2-with-client-pin=no" ];
               passwordFile = null; # see the swap container
               content = {
                 type = "swap";
@@ -112,11 +118,13 @@ in
                 bypassWorkqueues = true;
                 crypttabExtraOpts = [ "fido2-device=auto" ];
               };
-              # Tap only, no PIN: the token is the factor. A PIN would make it
-              # tap+PIN on every boot for a machine that is already physically
-              # required to be present.
+              # No extraFido2EnrollArgs: the Token2 reports UV ✗ with
+              # alwaysUv ✓, so it cannot verify the user on-device (no
+              # fingerprint, no PIN pad) and the client PIN is the only UV left.
+              # systemd then stores fido2-clientPin-required=true and retries
+              # with a PIN regardless of --fido2-with-client-pin, so passing
+              # "no" here did nothing but describe behaviour that never happened.
               enrollFido2 = true;
-              extraFido2EnrollArgs = [ "--fido2-with-client-pin=no" ];
               passwordFile = null; # see the swap container above
               content = {
                 type = "btrfs";
