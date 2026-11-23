@@ -120,6 +120,23 @@ in
           installation_mode = "force_installed";
         };
       };
+      # Native-messaging bridge for Mailvelope's GnuPG backend. Mailvelope talks
+      # to gpgme-json over stdio instead of using OpenPGP.js, which is what lets
+      # it drive the Token2 card (OpenPGP.js cannot reach an OpenPGP smartcard).
+      # gpgme-json lives in gpgme's dev output, not its bin.
+      nativeMessagingHosts = [
+        (pkgs.writeTextFile {
+          name = "gpgmejson";
+          destination = "/lib/mozilla/native-messaging-hosts/gpgmejson.json";
+          text = builtins.toJSON {
+            name = "gpgmejson";
+            description = "JavaScript binding for GnuPG";
+            path = "${pkgs.gpgme.dev}/bin/gpgme-json";
+            type = "stdio";
+            allowed_extensions = [ "jid1-AQqSMBYb0a8ADg@jetpack" ];
+          };
+        })
+      ];
     };
 
     # GUI applications
