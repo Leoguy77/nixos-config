@@ -418,10 +418,14 @@ in
       };
 
       # ── Protocols ────────────────────────────────────────────────────────
-      enableImapSsl = true; # 993, implicit TLS — what clients actually use
-      enableImap = false; # 143/STARTTLS is deprecated (RFC 8314 §4.1)
-      enableSubmissionSsl = true; # 465, implicit TLS submission
-      enableManageSieve = true; # 4190, server-side filters from the webmail
+      # Upstream grouped the flat enable* options under listeners.<name>.enable
+      # (rev 90f5912); the old names warn as renamed options.
+      listeners = {
+        imaps.enable = true; # 993, implicit TLS — what clients actually use
+        imap.enable = false; # 143/STARTTLS is deprecated (RFC 8314 §4.1)
+        submissions.enable = true; # 465, implicit TLS submission
+        manageSieve.enable = true; # 4190, server-side filters from the webmail
+      };
 
       # ── TLS ──────────────────────────────────────────────────────────────
       # The cert is defined once below by nginx (`enableACME`); Postfix and
@@ -434,8 +438,9 @@ in
       virusScanning = false;
 
       # rspamd queries DNSBLs constantly; a local resolver keeps the journal
-      # readable instead of filling it with timeouts.
-      localDnsResolver = true;
+      # readable instead of filling it with timeouts. The actual resolver is
+      # kresd, enabled where the networking is configured below (upstream SNM
+      # removed the `localDnsResolver` wrapper that used to enable it).
 
       dkim = {
         enable = true;
@@ -543,12 +548,25 @@ in
     # unsigned zone with "no-signature" — which broke
     # `nixos-rebuild --flake github:…` and system.autoUpgrade outright.
     #
-    # The upstream is kresd (SNM's `localDnsResolver`, 127.0.0.1:53): a full
-    # recursor that walks the tree from the root itself, so no third party sees
-    # this host's query stream and DNSBL lookups arrive from our own address
-    # instead of a public resolver's (Spamhaus refuses those). Falling back to
-    # public resolvers keeps lookups — and autoUpgrade — working if kresd dies;
-    # resolved fails over on its own.
+    # The upstream is kresd (was SNM's `localDnsResolver`, now enabled below
+    # directly): a full recursor that walks the tree from the root itself, so
+    # no third party sees this host's query stream and DNSBL lookups arrive
+    # from our own address instead of a public resolver's (Spamhaus refuses
+    # those). Stage 2 runs kresd, not systemd-resolved — SNM warns (without
+    # opt-out) when resolved is on, since its stub cannot validate DNSSEC.
+    #
+    # Falling back to public resolvers keeps lookups — and autoUpgrade —
+    # working if kresd dies: resolv.conf lists kresd first, then the Quad9
+    # nameservers from hosts/mail/default.nix, and glibc tries them in order.
+    # That needs resolvconf, which firewall.nix turned off because resolved
+    # used to write resolv.conf itself.
+    services.kresd.enable = true;
+    services.resolved.enable = false;
+    # mkForce: firewall.nix sets this plainly (it relied on resolved writing
+    # resolv.conf); force so the conflict is resolved in our favor.
+    networking.resolvconf.enable = lib.mkForce true;
+    # boot.initrd.services.resolved stays on (default with initrd networkd) and
+    # the initrd's resolved reuses these settings for the unlock path.
     services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation [ "127.0.0.1" ];
     services.resolved.settings.Resolve.FallbackDNS = lib.mkIf cfg.dnssecValidation [
       "1.1.1.1"
