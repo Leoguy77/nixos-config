@@ -140,6 +140,16 @@
   # the lid or any key still wakes it.
   services.udev.extraRules = ''
     SUBSYSTEM=="i2c", DRIVER=="i2c_hid_acpi", ATTR{power/wakeup}="disabled"
+
+    # TOKEN2 FIDO2 security keys (349e) are missing from libfido2's official
+    # 70-u2f.rules (only 0020/0022 FIDO variants are listed, not the R3 0024
+    # FIDO+PGP or the 0200-series Bio3 line). Without uaccess the hidraw node
+    # stays root:root 0600, so 1Password's helper gets FIDO_ERR_INTERNAL and
+    # the key blinks waiting for a touch it can never receive. fido_id only
+    # tags USB keys with ID_SECURITY_TOKEN, and 0024 is not among them.
+    #
+    # Matched by VID/PID so every variant of this key family gets in.
+    KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="349e", TAG+="uaccess"
   '';
 
   # Revive the touchpad after resuming from hibernation. It comes back dead:
