@@ -235,7 +235,7 @@ in
                   "off": "none",
                   "minimal": null,
                   "low": "low",
-                  "medium": "medium",
+                  "medium": null,
                   "high": "high",
                   "xhigh": null,
                   "max": "max"
