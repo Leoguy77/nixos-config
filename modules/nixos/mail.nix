@@ -556,15 +556,21 @@ in
     # opt-out) when resolved is on, since its stub cannot validate DNSSEC.
     #
     # Falling back to public resolvers keeps lookups — and autoUpgrade —
-    # working if kresd dies: resolv.conf lists kresd first, then the Quad9
-    # nameservers from hosts/mail/default.nix, and glibc tries them in order.
-    # That needs resolvconf, which firewall.nix turned off because resolved
-    # used to write resolv.conf itself.
+    # working if kresd dies. Under networkd nothing registers a dynamic
+    # interface with resolvconf, so the Quad9 servers from
+    # hosts/mail/default.nix have to be added by hand; and openresolv's libc
+    # subscriber drops every non-local server once a local one is listed
+    # (resolv_conf_local_only defaults to yes), so it has to be switched off or
+    # the fallback never appears in resolv.conf.
     services.kresd.enable = true;
     services.resolved.enable = false;
     # mkForce: firewall.nix sets this plainly (it relied on resolved writing
     # resolv.conf); force so the conflict is resolved in our favor.
     networking.resolvconf.enable = lib.mkForce true;
+    networking.resolvconf.extraConfig = ''
+      name_servers="$name_servers ${lib.concatStringsSep " " config.networking.nameservers}"
+      resolv_conf_local_only=NO
+    '';
     # boot.initrd.services.resolved stays on (default with initrd networkd) and
     # the initrd's resolved reuses these settings for the unlock path.
     services.resolved.settings.Resolve.DNS = lib.mkIf cfg.dnssecValidation [ "127.0.0.1" ];
