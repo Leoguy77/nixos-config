@@ -51,6 +51,10 @@
   # still the large channel. Left alone it would pin `nix.registry.nixpkgs` to
   # 1.30.6 on a host running 1.30.7, so `nix-shell -p nginx` would silently get
   # the vulnerable build.
+  #
+  # This fixes the registry only. The module tree is chosen in flake.nix's
+  # mkHost, which calls nixosSystem on this channel's lib for exactly these
+  # hosts — a mismatch there builds old modules against new packages.
   nixpkgs.flake.source = lib.mkForce inputs.nixpkgs-small.outPath;
 
   # Compose the pieces into a server.

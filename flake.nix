@@ -115,10 +115,28 @@
         sops-nix = inputs."sops-nix";
       };
 
+      # A host is a server exactly when it imports profiles/server.nix — the
+      # same predicate CI uses to split build-servers from build-desktops, and
+      # the file that switches nixpkgs.pkgs to the small channel.
+      isServerHost =
+        hostname:
+        builtins.match ".*profiles/server\\.nix.*" (builtins.readFile ./hosts/${hostname}/default.nix)
+        != null;
+
       # Helper: create a NixOS host config from hosts/<name>/
+      #
+      # The module tree comes from whichever nixpkgs lib is used here, and that
+      # has to match the package set the host runs. profiles/server.nix swaps
+      # `nixpkgs.pkgs` to nixpkgs-small, but it cannot move the module tree —
+      # `lib.nixosSystem` takes `baseModules` from the lib it was called on. So a
+      # server evaluated through the large channel's lib got old NixOS modules
+      # over new packages, and on 2026-11-24 that combination appended
+      # nixos/modules/system/boot/systemd-search-path.patch (still present in the
+      # large channel) to a systemd 262.2 source that already contained the fix,
+      # failing with "Reversed (or previously applied) patch detected".
       mkHost =
         hostname:
-        nixpkgs.lib.nixosSystem {
+        (if isServerHost hostname then inputs.nixpkgs-small else nixpkgs).lib.nixosSystem {
           inherit system specialArgs;
           modules = [
             home-manager.nixosModules.home-manager
