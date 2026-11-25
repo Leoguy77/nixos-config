@@ -83,6 +83,28 @@ in
       # state dir is the shell's own scratch space; this is the layer underneath
       # it.
       "noctalia/noctalia.toml".source = ./niri/noctalia.toml;
+
+      # Stop nm-applet from autostarting its own tray icon. noctalia's `network`
+      # widget already shows the connected SSID in the bar, so the applet's
+      # lock+bars icon was a second network indicator sitting next to it.
+      #
+      # The applet comes from /run/current-system/sw/etc/xdg/autostart/
+      # nm-applet.desktop, which systemd-xdg-autostart-generator turns into
+      # app-nm\x2dapplet@autostart.service. A file of the same name under
+      # ~/.config/autostart/ shadows it, and `Hidden=true` makes the generator
+      # drop the unit entirely (verified: the unit disappears from
+      # `systemctl --user list-units --all` after daemon-reload).
+      #
+      # nm-connection-editor stays installed and reachable: it is what actually
+      # edits profiles / VPNs / hidden networks, and the bar's network page does
+      # not. Hiding the applet only removes the icon.
+      "autostart/nm-applet.desktop".text = ''
+        [Desktop Entry]
+        Type=Application
+        Name=NetworkManager Applet
+        Exec=nm-applet
+        Hidden=true
+      '';
     };
 
     # ── Launcher ──────────────────────────────────────────────────────────
