@@ -202,8 +202,10 @@ in
   # sub-account is chrooted to its home, so it cannot read or prune kirito's
   # snapshots, and deleting it revokes only this machine.
   #
-  # The mail store is the one dataset here that cannot be recreated: DKIM keys
-  # sign outbound mail, and losing them invalidates every published selector.
+  # Only data that cannot be recreated from this repo is listed. The DKIM key is
+  # deliberately absent: it comes from sops and is materialised at
+  # /run/secrets/dkim_mail_private_key, so it is already reconstructible and
+  # /var/lib/dkim stays empty (rspamd reads the secret path directly).
   #
   # The port must live in the URL; see profiles/desktop.nix for why sftp.args
   # cannot carry it. The bracketed hostNames form is the non-standard-port
@@ -212,7 +214,6 @@ in
   modules.backup.paths = [
     "/var/vmail"
     "/var/lib/roundcube"
-    "/var/lib/dkim"
     "/var/backup/roundcube-db"
   ];
   modules.backup.backupPrepareCommand = ''
