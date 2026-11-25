@@ -32,10 +32,27 @@ creation_rules:
   # A host with its own secrets: same user, plus that host's own key, so the file
   # stays readable by you but not by unrelated machines.
   #
-  # - path_regex: hosts/mail/secrets/[^/]+\.sops\.ya?ml$
-  #   <<: *common
-  #   key_groups:
-  #     - age:
-  #         - *mail
-  #       pgp:
-  #         - *leoguy77
+  # These exist because the shared file above is readable by BOTH hosts, which
+  # makes it the wrong home for anything that authenticates one machine to
+  # another. A restic sftp key placed there is decryptable by the other host, so
+  # the per-machine Storage Box sub-account it unlocks is shared in practice no
+  # matter what the key is named.
+  #
+  # One rule per file, with no regex matching more than one: sops uses the FIRST
+  # matching rule, not the most specific. A generic
+  # `secrets/restic/[^/]+\.sops\.ya?ml$` listed above these would silently
+  # capture every host's file and encrypt it to whichever key that rule names —
+  # measured, not assumed.
+  - path_regex: secrets/restic/kirito\.sops\.ya?ml$
+    key_groups:
+      - age:
+          - *kirito
+        pgp:
+          - *leoguy77
+
+  - path_regex: secrets/restic/mail\.sops\.ya?ml$
+    key_groups:
+      - age:
+          - *mail
+        pgp:
+          - *leoguy77

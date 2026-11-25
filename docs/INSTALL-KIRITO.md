@@ -386,16 +386,16 @@ prompted — that is the slot disko kept for exactly this case.
 
 The recovery key is *not* in the flake and is not recoverable from it. The age key
 on the machine cannot unlock the disk, and losing both the token and the recovery
-key means the data is gone — the restic repository on host1 is the only copy that
-survives.
+key means the data is gone — the restic repository on the Storage Box is the
+only copy that survives.
 
-## 5. Restore /home from host1
+## 5. Restore /home from the Storage Box
 
 Nothing put your files back. `/home/leoguy77` now exists and is empty except for
-what home-manager generated. The restic repository on host1 has them, and the new
-machine can already reach it: the host key was carried across, so sops decrypts
-`restic_password` and `restic_ssh_key` on first boot, and `programs.ssh.knownHosts`
-already pins host1.
+what home-manager generated. The restic repository is on the Hetzner Storage Box
+(sub-account `u726083-sub2`) and the new machine can already reach it: the host
+key was carried across, so sops decrypts `restic_password` and the per-host
+`restic_ssh_key` on first boot, and `programs.ssh.knownHosts` pins the box.
 
 Log in as `leoguy77` and run it **as root**, because the backup was taken as root
 and only root can write files back with their original ownership.

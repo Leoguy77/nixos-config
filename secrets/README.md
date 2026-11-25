@@ -56,8 +56,8 @@ not come up. That is why `modules/nixos/sops.nix` wraps each entry in
 | `leoguy77_password_hash` | `modules/nixos/login.nix` | kirito | `/run/secrets-for-users/leoguy77_password_hash` |
 | `pi_mcp_json` | `hosts/kirito/default.nix:56` | kirito | `~/.pi/agent/mcp.json` |
 | `wg0_private_key` | `modules/nixos/wireguard.nix` | kirito | `/run/secrets/wg0_private_key` |
-| `restic_password` | `modules/nixos/backup.nix` | kirito | `/run/secrets/restic_password` |
-| `restic_ssh_key` | `modules/nixos/backup.nix` (sftp only) | kirito | `/run/secrets/restic_ssh_key` |
+| `restic_password` | `modules/nixos/backup.nix` | kirito, mail | `/run/secrets/restic_password` |
+| `restic_ssh_key` | `modules/nixos/backup.nix` (sftp only) | kirito, mail | `/run/secrets/restic_ssh_key` |
 | `dkim_mail_private_key` | `modules/nixos/mail.nix:662` | mail | `/run/secrets/dkim_mail_private_key` |
 | `leon_password_hash` | `hosts/mail/default.nix:113` (dovecot) | mail | `/run/secrets/leon_password_hash` |
 | `cloudflare_dns_token` | `modules/nixos/dns.nix:227` | mail | `/run/secrets/cloudflare_dns_token` |
@@ -84,6 +84,20 @@ Cloudflare token needs exactly two permissions, both scoped to
 
 It is deliberately not IP-locked (a push from the workstation must work) and is
 not a global key, so a leak can rewrite one zone and nothing else.
+
+## Host-scoped files
+
+`secrets/restic/<host>.sops.yaml` holds that host's restic sftp key and is
+encrypted to that host's age key plus the user's PGP key — never to both hosts.
+The shared `secrets.sops.yaml` is readable by kirito *and* mail, so a key stored
+there is decryptable by whichever machine is compromised, and the per-machine
+Storage Box sub-account it unlocks is then shared in practice no matter what the
+key is named. The file, not the key name, is the security boundary.
+
+sops applies the **first** matching `creation_rule`, so every host file needs its
+own non-overlapping `path_regex`. A generic `secrets/restic/[^/]+\.sops\.ya?ml$`
+placed above the per-host rules silently captures all of them and encrypts each
+to the first host's key.
 
 ## Adding a host
 

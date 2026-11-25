@@ -6,6 +6,7 @@
 {
   config,
   lib,
+  pkgs,
   inputs,
   mylib,
   myvars,
@@ -197,12 +198,41 @@ in
   # re-fetch and the lock pins every input, so the cache buys nothing here.
   nix.settings.tarball-ttl = 0;
 
-  # Backups: deliberately off until an *off-site* target exists. The default
-  # repository is a local path, which on a 30 GB disk would just double the
-  # mail store on the same (encrypted) device. Once you have a target:
+  # Backups to the Hetzner Storage Box, sub-account `u726083-sub1`. That
+  # sub-account is chrooted to its home, so it cannot read or prune kirito's
+  # snapshots, and deleting it revokes only this machine.
   #
-  #   modules.backup.enable = true;
-  #   modules.backup.paths = [ "/var/lib/vmail" "/var/lib/roundcube" ];
-  #   modules.backup.repository = "sftp:user@host:/srv/restic-mail";
-  #   # and switch modules.sops.enable on for the repository password
+  # The mail store is the one dataset here that cannot be recreated: DKIM keys
+  # sign outbound mail, and losing them invalidates every published selector.
+  #
+  # The port must live in the URL; see profiles/desktop.nix for why sftp.args
+  # cannot carry it. The bracketed hostNames form is the non-standard-port
+  # syntax ssh actually consults.
+  modules.backup.enable = true;
+  modules.backup.paths = [
+    "/var/vmail"
+    "/var/lib/roundcube"
+    "/var/lib/dkim"
+    "/var/backup/roundcube-db"
+  ];
+  modules.backup.backupPrepareCommand = ''
+    # Roundcube's attachments, identities and contacts live in postgres, not
+    # in /var/lib/roundcube, so a file-level backup would restore a webmail
+    # that has forgotten every message it ever indexed. Dumped every run: the
+    # database is small, and a backup needing a second, differently-scheduled
+    # job to be complete is one that silently is not.
+    #
+    # As the `roundcube` role, not root: with database.host = "localhost" the
+    # module creates that role for peer auth, and root is not a postgres
+    # superuser here. `sudo -u` picks up the matching unix user, so no password
+    # is involved anywhere.
+    mkdir -p /var/backup/roundcube-db
+    ${pkgs.sudo}/bin/sudo -u roundcube ${config.services.postgresql.package}/bin/pg_dump \
+      --clean --if-exists roundcube > /var/backup/roundcube-db/roundcube.sql
+  '';
+  modules.backup.repository = "sftp://u726083-sub1@u726083.your-storagebox.de:23/restic-${config.networking.hostName}";
+  modules.backup.knownHost = {
+    hostNames = [ "[u726083.your-storagebox.de]:23" ];
+    publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICf9svRenC/PLKIL9nk6K/pxQgoiFC41wTNvoIncOxs";
+  };
 }

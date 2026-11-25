@@ -67,20 +67,28 @@
 
     modules.backup.enable = true;
     modules.backup.paths = [ "/home/${myvars.username}" ];
-    # Off-machine, on host1 (ts.aero-gaming.de). Per-host directory so a second
-    # desktop can share the box without mixing snapshot sets or retention.
+    # Off-machine, on a Hetzner Storage Box. A local repository would be the
+    # disk protecting itself — on kirito it sat on the same ext4 partition as
+    # /home, so the reinstall that prompted this change would have deleted the
+    # data and its only copy together. host1 played this role until the box
+    # replaced it.
     #
-    # A local repository would be the disk protecting itself — on kirito it sat
-    # on the same ext4 partition as /home, so the reinstall that prompted this
-    # change would have deleted the data and its only copy together.
-    modules.backup.repository = "sftp:leoguy77@host1:/home/leoguy77/restic-repo/${config.networking.hostName}";
+    # Each machine gets its own sub-account, and a sub-account is chrooted to
+    # its home directory: this one cannot see, let alone prune, mail's snapshots.
+    #
+    # The port MUST live in the URL. restic's buildSSHCommand emits
+    # `ssh <host> -p <port> …` from the parsed location; putting `-p 23` in
+    # sftp.args instead makes restic shell-split it into the literal port
+    # string "' 23 -i …'", which ssh rejects with Bad port.
+    modules.backup.repository = "sftp://u726083-sub2@u726083.your-storagebox.de:23/restic-${config.networking.hostName}";
+
+    # A non-standard port changes the known_hosts syntax too: ssh looks up the
+    # bracketed form, and un-bracketed entries are ignored as "no key known".
+    # hostNames is written verbatim into /etc/ssh/ssh_known_hosts, so the
+    # brackets belong right here.
     modules.backup.knownHost = {
-      hostNames = [
-        "host1"
-        "host1.tail4628f.ts.net"
-        "ts.aero-gaming.de"
-      ];
-      publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIaqFLlTS/8HWt06khHhXeNwSLXC54uCVj2zHeD/Ol+2";
+      hostNames = [ "[u726083.your-storagebox.de]:23" ];
+      publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICf9svRenC/PLKIL9nk6K/pxQgoiFC41wTNvoIncOxs";
     };
 
     # Firmware updates via fwupd (LVFS)

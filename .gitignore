@@ -8,6 +8,13 @@
 !/secrets/*.sops.yaml
 # ...except the guide that explains it.
 !/secrets/README.md
+# Host-scoped sops files live one level down. A parent directory that is ignored
+# is never descended into, so `!/secrets/*.sops.yaml` above cannot match them:
+# the directory has to be re-included before its contents can be. Ciphertext is
+# fine to publish; each file is encrypted to one host plus the user's PGP key.
+!/secrets/restic/
+/secrets/restic/*
+!/secrets/restic/*.sops.yaml
 hosts/*/secrets/
 
 # Editor

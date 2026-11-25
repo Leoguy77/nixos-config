@@ -61,6 +61,11 @@ in
 
     sshKeyFile = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
+      # Reads `restic_ssh_key`, which `modules/nixos/sops.nix` binds to a
+      # per-host file. The isolation comes from that file's recipient list, not
+      # from the secret's name: the shared secrets file is readable by every
+      # host, so a key stored there is readable by all of them regardless of
+      # what it is called.
       default =
         if config.modules.sops.enable && config.sops.secrets ? restic_ssh_key then
           config.sops.secrets.restic_ssh_key.path
@@ -108,10 +113,25 @@ in
         Point this at a sops secret, e.g.
         `config.sops.secrets."restic_password".path`.
 
-        If null, a password is generated at /var/backup/restic-password on
-        first activation. That file is NOT reproducible from the flake, so a
-        reinstall or an ephemeral root destroys it — and every snapshot in the
-        repository with it. Leave this null only for throwaway repositories.
+        If null, the sops `restic_password` is used when sops is enabled;
+        otherwise a password is generated at /var/backup/restic-password on
+        first activation. That generated file is NOT reproducible from the
+        flake, so a reinstall or an ephemeral root destroys it — and every
+        snapshot in the repository with it. Leave this null only for throwaway
+        repositories.
+      '';
+    };
+
+    backupPrepareCommand = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Shell fragment run immediately before `restic backup`, as root.
+
+        Exists for directories created at start-up, which are therefore absent
+        on a fresh boot: restic fails the entire run when a path in `paths` does
+        not exist. Create them here rather than pre-creating them on disk, which
+        an ephemeral root would not keep anyway.
       '';
     };
 
@@ -184,8 +204,19 @@ in
         exclude
         pruneOpts
         initialize
+        backupPrepareCommand
         ;
       inherit (cfg) repository;
+
+      # One of these two is always set: `passwordFile` when given, the sops
+      # secret next, and restic-password-init handles the remainder.
+      passwordFile =
+        if cfg.passwordFile != null then
+          cfg.passwordFile
+        else if config.modules.sops.enable && config.sops.secrets ? restic_password then
+          config.sops.secrets.restic_password.path
+        else
+          "/var/backup/restic-password";
 
       # sftp is driven by restic's own ssh invocation, so the key is passed as
       # `-o sftp.args=…` rather than written into root's ssh config. Host
@@ -196,13 +227,6 @@ in
         "sftp.args='-i ${cfg.sshKeyFile} -o IdentitiesOnly=yes'"
       ];
 
-      passwordFile =
-        if cfg.passwordFile != null then
-          cfg.passwordFile
-        else if config.modules.sops.enable && config.sops.secrets ? restic_password then
-          config.sops.secrets.restic_password.path
-        else
-          "/var/backup/restic-password";
       inherit (cfg) timerConfig;
     };
   };

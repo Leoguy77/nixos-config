@@ -46,14 +46,20 @@ in
       (lib.mkIf config.modules.backup.enable {
         restic_password = { };
       })
-      # The sftp key, kept separate from restic_password on purpose: rotating
-      # the password re-encrypts nothing but the repository key, while rotating
-      # this means re-authorising one line on the far side.
+      # The sftp key. Per-host FILE, not just a per-host key name: the shared
+      # file above is readable by both hosts, so a key stored there is readable
+      # by the other machine whatever it is called, and the per-machine Storage
+      # Box sub-account it unlocks is then shared in practice. Encrypted to one
+      # host's age key plus the user's PGP key, by the rules in .sops.yaml.
+      #
+      # The key inside the file is plain `restic_ssh_key`: the file name already
+      # says which machine it belongs to, so the suffix the shared file needed
+      # would be redundant here.
       #
       # Gated on the repository being remote, not on `sshKeyFile` — that option's
       # default reads this very set, so testing it here is an infinite recursion.
       (lib.mkIf (config.modules.backup.enable && lib.hasPrefix "sftp:" config.modules.backup.repository) {
-        restic_ssh_key = { };
+        restic_ssh_key.sopsFile = ../../secrets/restic/${config.networking.hostName}.sops.yaml;
       })
     ];
   };
