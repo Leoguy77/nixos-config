@@ -229,5 +229,24 @@ in
 
       inherit (cfg) timerConfig;
     };
+
+    # restic's unit already declares `after = [ "network-online.target" ]`, but
+    # that target stays "reached" across a suspend/resume, so it guarantees
+    # nothing on the wake-from-sleep path — which is exactly when this fires.
+    # With `Persistent = true`, systemd runs the missed daily job immediately on
+    # resume, and DNS was still down: "Could not resolve hostname
+    # u726083.your-storagebox.de". The backup is the one timer that must not be
+    # allowed to silently skip a day, so retry instead of losing the run.
+    #
+    # Bounded by startLimit*: six attempts over two hours, then it gives up and
+    # waits for the next timer activation rather than retrying all day.
+    systemd.services.restic-backups-system = {
+      startLimitIntervalSec = 7200;
+      startLimitBurst = 6;
+      serviceConfig = {
+        Restart = "on-failure";
+        RestartSec = "15min";
+      };
+    };
   };
 }
