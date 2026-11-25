@@ -40,4 +40,5 @@
   wireguard = ./wireguard.nix;
   x11 = ./x11.nix;
   zram = ./zram.nix;
+  zsh = ./zsh.nix;
 }

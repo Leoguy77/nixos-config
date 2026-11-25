@@ -73,6 +73,9 @@
   modules.sysctl.enable = true;
   modules.tailscale.enable = true;
   modules.zram.enable = true;
+  # Servers have no home-manager, so zsh would otherwise be stock: the
+  # newuser wizard on every login and a Backspace key that types spaces.
+  modules.zsh.enable = true;
 
   # UEFI boot, reused from the shared narrow modules.
   modules.boot.enable = true;
