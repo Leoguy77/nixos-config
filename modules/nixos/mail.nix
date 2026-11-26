@@ -384,6 +384,25 @@ in
       fqdn = cfg.hostname;
       domains = [ cfg.domain ];
 
+      # Silence the release-mismatch warning unconditionally: it cannot be
+      # satisfied on this repo, not that it is wrong.
+      #
+      # `nixos-mailserver` follows the LARGE `nixpkgs` input and reports
+      # `mailserverRelease = "26.11"` — which matches that input exactly. But
+      # `profiles/server.nix` swaps the package set to `nixpkgs-small`, where
+      # `lib.trivial.release` is already 27.05, so mailserver compares 26.11
+      # against 27.05 and warns on every rebuild.
+      #
+      # The alternative — dropping to the large channel on mail — would delay
+      # nginx/postgresql/openssl fixes by days, which is the whole reason
+      # servers use `-small`. Pinning mailserver to a 27.05 release is not
+      # possible; upstream has no such branch or tag.
+      #
+      # What this does NOT mean: the versions now match. A rollback across this
+      # boundary is still the thing to be careful about. Re-check when
+      # upstream publishes a `nixos-27.05` branch.
+      assertions.nixpkgsRelease = false;
+
       # Tracks mailserver *data-layout* migrations, not system.stateVersion.
       # 5 is the current level (required by enableManageSieve). A fresh install
       # starts here; an existing server would have to migrate up instead.
