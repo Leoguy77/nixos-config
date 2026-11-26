@@ -214,6 +214,23 @@ in
       description = "systemd timer configuration controlling repository checks.";
     };
 
+    unlockBeforeBackup = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Run `restic unlock` before each backup.
+
+        restic holds an exclusive lock for a whole run. When a process is killed
+        — a cancelled check, a suspend, an OOM — the lock survives and every
+        later run dies with `repository is already locked`. Upstream used to
+        clear that as a side effect of the `unlock` it ran inside its prune
+        block; with pruning moved out, nothing does it any more.
+
+        `unlock` only drops locks whose owning process is gone, so a genuine
+        concurrent run is never disturbed.
+      '';
+    };
+
     initialize = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -261,13 +278,21 @@ in
         paths
         exclude
         initialize
-        backupPrepareCommand
         ;
       inherit (cfg) repository;
 
       # No pruneOpts: upstream appends `forget --prune` to the backup unit's own
       # ExecStart, which is why retention used to cost the nightly run minutes.
-      # Pruning lives on its own weekly timer below.
+      # Pruning lives on its own weekly timer below, and the `unlock` that came
+      # with that block is restored explicitly — see `unlockBeforeBackup`.
+      backupPrepareCommand =
+        if cfg.backupPrepareCommand != null then
+          ''
+            ${lib.optionalString cfg.unlockBeforeBackup "${resticMaintenance} unlock || true"}
+            ${cfg.backupPrepareCommand}
+          ''
+        else
+          lib.optionalString cfg.unlockBeforeBackup "${resticMaintenance} unlock || true";
 
       # One of these two is always set: `passwordFile` when given, the sops
       # secret next, and restic-password-init handles the remainder.
@@ -329,6 +354,7 @@ in
         # that was decided but not applied.
         ExecStart = pkgs.writeShellScript "restic-prune" ''
           set -eu
+          ${resticMaintenance} unlock || true
           ${resticMaintenance} forget ${lib.concatStringsSep " " cfg.pruneOpts}
           ${resticMaintenance} prune
         '';
