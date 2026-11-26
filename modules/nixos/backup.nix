@@ -19,6 +19,27 @@
 
 let
   cfg = config.modules.backup;
+
+  # Maintenance units must talk to the same repository as the backup itself, so
+  # they inherit its environment (RESTIC_REPOSITORY, RESTIC_PASSWORD_FILE,
+  # RESTIC_CACHE_DIR) instead of duplicating it. `restic-system` is a wrapper
+  # built by the upstream module from that same environment, so invoking it
+  # here would mean guessing at a store path; carrying the env and the package
+  # explicitly is direct.
+  resticPackage = config.services.restic.backups.system.package;
+
+  # Same `-o` restic is given by the backup unit. Without it the sftp backend
+  # has no key and every maintenance run fails to authenticate.
+  resticExtraOptions = lib.optionals (cfg.sshKeyFile != null) [
+    "sftp.args=-i ${cfg.sshKeyFile} -o IdentitiesOnly=yes"
+  ];
+
+  resticMaintenance = pkgs.writeShellScript "restic-maintenance" ''
+    set -eu
+    exec ${lib.getExe resticPackage} \
+      ${lib.concatMapStrings (arg: "-o ${lib.escapeShellArg arg} ") resticExtraOptions}\
+      "$@"
+  '';
 in
 {
   options.modules.backup = {
@@ -153,7 +174,44 @@ in
         "--keep-monthly 12"
         "--keep-yearly 3"
       ];
-      description = "Retention policy passed to `restic forget --prune`.";
+      description = ''
+        Retention policy passed to `restic forget --prune` by the weekly
+        prune timer.
+
+        Deliberately NOT applied on every backup: `prune` rewrites pack files
+        and took ~50s for 358 packs at 5 GiB, so running it nightly makes the
+        backup job as slow as the prune. Empty it to disable pruning entirely.
+      '';
+    };
+
+    pruneTimerConfig = lib.mkOption {
+      type = lib.types.attrs;
+      default = {
+        OnCalendar = "weekly";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
+      };
+      description = "systemd timer configuration controlling pruning.";
+    };
+
+    checkOpts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      # Metadata alone proves the index is consistent, not that the pack files
+      # still hold the data. A subset read spreads a full verification over
+      # ~10 weeks without making any single run slow. Set to [ ] for a
+      # structure-only check.
+      default = [ "--read-data-subset=10%" ];
+      description = "Options for the scheduled `restic check`.";
+    };
+
+    checkTimerConfig = lib.mkOption {
+      type = lib.types.attrs;
+      default = {
+        OnCalendar = "weekly";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
+      };
+      description = "systemd timer configuration controlling repository checks.";
     };
 
     initialize = lib.mkOption {
@@ -202,11 +260,14 @@ in
       inherit (cfg)
         paths
         exclude
-        pruneOpts
         initialize
         backupPrepareCommand
         ;
       inherit (cfg) repository;
+
+      # No pruneOpts: upstream appends `forget --prune` to the backup unit's own
+      # ExecStart, which is why retention used to cost the nightly run minutes.
+      # Pruning lives on its own weekly timer below.
 
       # One of these two is always set: `passwordFile` when given, the sops
       # secret next, and restic-password-init handles the remainder.
@@ -247,6 +308,76 @@ in
         Restart = "on-failure";
         RestartSec = "15min";
       };
+    };
+
+    # Maintenance that must not lengthen the nightly backup: both run through
+    # the `restic-system` wrapper, so they inherit the same repository, password
+    # and ssh key with no second copy of any of it.
+    systemd.services.restic-maintenance-prune = lib.mkIf (cfg.pruneOpts != [ ]) {
+      description = "Drop snapshots past the retention policy and reclaim space";
+      after = [
+        "network-online.target"
+        "restic-backups-system.service"
+      ];
+      wants = [ "network-online.target" ];
+      path = [ config.programs.ssh.package ];
+      environment = config.systemd.services.restic-backups-system.environment;
+      serviceConfig = {
+        Type = "oneshot";
+        # forget drops the references (cheap); prune rewrites packs (slow).
+        # They are one unit so a prune never runs against a policy change
+        # that was decided but not applied.
+        ExecStart = pkgs.writeShellScript "restic-prune" ''
+          set -eu
+          ${resticMaintenance} forget ${lib.concatStringsSep " " cfg.pruneOpts}
+          ${resticMaintenance} prune
+        '';
+        CacheDirectory = "restic-backups-system";
+        CacheDirectoryMode = "0700";
+        # A prune interrupted halfway can leave the index mid-rewrite; restic
+        # recovers on the next run, and a retry is cheap compared to a backup
+        # that never gets its retention applied.
+        Restart = "on-failure";
+        RestartSec = "30min";
+      };
+      startLimitIntervalSec = 7200;
+      startLimitBurst = 3;
+    };
+
+    systemd.timers.restic-maintenance-prune = lib.mkIf (cfg.pruneOpts != [ ]) {
+      wantedBy = [ "timers.target" ];
+      timerConfig = cfg.pruneTimerConfig;
+    };
+
+    # Nothing else verifies that the pack files still contain the data they
+    # claim to. Without this a corrupted repository looks healthy until the day
+    # a restore is attempted.
+    systemd.services.restic-maintenance-check = {
+      description = "Verify the restic repository";
+      after = [
+        "network-online.target"
+        "restic-backups-system.service"
+      ];
+      wants = [ "network-online.target" ];
+      path = [ config.programs.ssh.package ];
+      environment = config.systemd.services.restic-backups-system.environment;
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${resticMaintenance} check ${lib.concatStringsSep " " cfg.checkOpts}";
+        CacheDirectory = "restic-backups-system";
+        CacheDirectoryMode = "0700";
+        # A check downloads real pack data, so it can fail on a flaky link just
+        # as easily as on corruption. Retrying distinguishes the two.
+        Restart = "on-failure";
+        RestartSec = "30min";
+      };
+      startLimitIntervalSec = 7200;
+      startLimitBurst = 3;
+    };
+
+    systemd.timers.restic-maintenance-check = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = cfg.checkTimerConfig;
     };
   };
 }
