@@ -98,6 +98,26 @@ in
       Install.WantedBy = [ "default.target" ];
     };
 
+    # bili >= 0.1.2xx defaults the pi plugin to INLINE compression (in-process,
+    # pseudo-origin http://billion-context.inline). With models.json pointing
+    # at 127.0.0.1:8787/bili/..., that is a second instance writing the same
+    # session dir -> split-brain: folds lost, compress refused ("no net
+    # shrink"/"too small"), armed-streak loops (bili #394/#3923). Pin the
+    # single-proxy architecture: the plugin attaches to the 8787 daemon.
+    #
+    # attachPolicy=global-fallback is required alongside it: since #2877 the
+    # default "own-lane" makes a lane'd pi hook SPAWN its own proxy rather than
+    # ride a manually-started `bili start` daemon, and the spawn fails here
+    # ("cannot find a Node runtime ... this process is not Node") -> model
+    # traffic goes direct, uncompressed. global-fallback is the documented
+    # setting for "one resident daemon serves all native agents".
+    home.file.".config/billion-context/billion-context.json".text = ''
+      {
+        "pi": { "inline": false },
+        "native": { "attachPolicy": "global-fallback" }
+      }
+    '';
+
     # Register all pi packages declaratively in settings.json (pi's `packages`
     # mechanism). This is the correct way to install pi packages: pi reads each
     # package's `pi` manifest (extensions/skills/prompts), shows them as proper
@@ -205,7 +225,7 @@ in
       {
         "providers": {
           "kisski": {
-            "baseUrl": "http://localhost:8787/bili/https://chat-ai.academiccloud.de/v1",
+            "baseUrl": "http://127.0.0.1:8787/bili/https://chat-ai.academiccloud.de/v1",
             "api": "openai-completions",
             "apiKey": "!kisski-key",
             "models": [
@@ -364,7 +384,7 @@ in
             ]
           },
           "ionos": {
-            "baseUrl": "http://localhost:8787/bili/https://openai.inference.de-txl.ionos.com/v1",
+            "baseUrl": "http://127.0.0.1:8787/bili/https://openai.inference.de-txl.ionos.com/v1",
             "api": "openai-completions",
             "apiKey": "!op read 'op://Personal/ionos basebox api cred/Anmeldedaten'",
             "models": [
