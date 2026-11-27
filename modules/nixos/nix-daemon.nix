@@ -31,9 +31,9 @@ in
         "nix-command"
         "flakes"
       ];
-      # Disabled: with useGlobalPkgs + bundles, nix-store --optimise on every
-      # boot makes boot slow. GC is handled by the timer below.
-      auto-optimise-store = false;
+      # Deduplicate identical store paths after every nix command. Each
+      # command takes a bit longer; GC still runs on the weekly timer below.
+      auto-optimise-store = true;
       # mkForce: the NixOS default is ["root"], which would otherwise be
       # concatenated into this list and write `trusted-users = root root …`.
       trusted-users = lib.mkForce [
